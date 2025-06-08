@@ -1,7 +1,7 @@
 # AI划词搜索 Chrome扩展
 <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="200px">  
    
-这是一个Chrome浏览器扩展，可以让你选中网页上的文本，通过AI获取解释和相关信息。
+一个呆头呆脑的AI划词搜索工具，支持OpenAI协议，可保留历史搜索记录。
 ## 功能展示
 ### 配置
 <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E9%85%8D%E7%BD%AE.png" width="300px">  
