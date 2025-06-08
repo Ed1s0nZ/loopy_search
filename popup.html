@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI划词搜索设置</title>
+  <style>
+    body {
+      font-family: 'Microsoft YaHei', sans-serif;
+      width: 320px;
+      padding: 20px;
+      margin: 0;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    .container {
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .header img {
+      width: 32px;
+      height: 32px;
+      margin-right: 12px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      color: #1a73e8;
+      font-weight: 600;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #555;
+      font-size: 14px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border 0.3s, box-shadow 0.3s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    .btn-group {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0d66da;
+    }
+    .btn-outline {
+      background-color: transparent;
+      color: #1a73e8;
+      border: 1px solid #1a73e8;
+    }
+    .btn-outline:hover {
+      background-color: rgba(26, 115, 232, 0.1);
+    }
+    .status {
+      margin-top: 15px;
+      text-align: center;
+      color: #34a853;
+      font-weight: 500;
+      font-size: 14px;
+      display: none;
+      animation: fadeIn 0.5s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .toggle-password {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+    }
+    .password-container {
+      position: relative;
+    }
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      margin-left: 5px;
+      color: #999;
+      font-size: 14px;
+      cursor: help;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-top: 5px;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin-right: 8px;
+    }
+    .checkbox-group label {
+      display: inline;
+      margin: 0;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 20px 0 10px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+    .nav-tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .nav-tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+    }
+    .nav-tab.active {
+      color: #1a73e8;
+      border-bottom-color: #1a73e8;
+      font-weight: 500;
+    }
+    .nav-tab:hover:not(.active) {
+      color: #1a73e8;
+      background-color: rgba(26, 115, 232, 0.05);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .history-preview {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .history-preview h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #444;
+    }
+    .history-preview p {
+      margin: 5px 0;
+      color: #666;
+    }
+    .history-preview-empty {
+      text-align: center;
+      color: #999;
+      padding: 20px 0;
+    }
+    .history-preview-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .history-preview-item:last-child {
+      border-bottom: none;
+    }
+    .history-preview-query {
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-preview-date {
+      font-size: 12px;
+      color: #999;
+    }
+    .view-all {
+      text-align: center;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="images/icon48.png" alt="AI划词搜索">
+      <h1>AI划词搜索</h1>
+    </div>
+    
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-tab="settings">设置</div>
+      <div class="nav-tab" data-tab="history">历史记录</div>
+    </div>
+    
+    <div id="settingsTab" class="tab-content active">
+      <div class="section-title">API设置</div>
+      
+      <div class="form-group">
+        <label for="apiUrl">API地址 <span class="tooltip">?<span class="tooltiptext">OpenAI或兼容OpenAI协议的API地址</span></span></label>
+        <input type="text" id="apiUrl" placeholder="例如: https://api.openai.com/v1/chat/completions">
+      </div>
+      
+      <div class="form-group">
+        <label for="apiKey">API密钥 <span class="tooltip">?<span class="tooltiptext">您的API访问密钥</span></span></label>
+        <div class="password-container">
+          <input type="password" id="apiKey" placeholder="输入您的API密钥">
+          <button type="button" class="toggle-password" id="togglePassword">显示</button>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="model">AI模型</label>
+        <select id="model">
+          <option value="gpt-3.5-turbo">GPT-3.5-Turbo</option>
+          <option value="gpt-4">GPT-4</option>
+          <option value="gpt-4-turbo">GPT-4-Turbo</option>
+          <option value="claude-3-opus">Claude-3-Opus</option>
+          <option value="claude-3-sonnet">Claude-3-Sonnet</option>
+          <option value="gemini-pro">Gemini Pro</option>
+          <option value="custom">自定义</option>
+        </select>
+      </div>
+      
+      <div class="form-group" id="customModelContainer" style="display: none;">
+        <label for="customModel">自定义模型名称</label>
+        <input type="text" id="customModel" placeholder="输入模型名称">
+      </div>
+      
+      <div class="section-title">显示设置</div>
+      
+      <div class="form-group">
+        <label for="prompt">默认提示词前缀</label>
+        <input type="text" id="prompt" placeholder="例如: 请解释以下内容:">
+      </div>
+      
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="useMarkdown">
+          <label for="useMarkdown">使用Markdown渲染 <span class="tooltip">?<span class="tooltiptext">启用后将使用Markdown格式渲染AI回复，支持标题、列表、代码块等</span></span></label>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="saveHistory" checked>
+          <label for="saveHistory">保存搜索历史 <span class="tooltip">?<span class="tooltiptext">保存您的搜索记录，以便稍后查看</span></span></label>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="historyRetention">历史记录保留时间</label>
+        <select id="historyRetention">
+          <option value="1">1天</option>
+          <option value="3">3天</option>
+          <option value="7" selected>7天</option>
+          <option value="14">14天</option>
+          <option value="30">30天</option>
+          <option value="0">永久保留</option>
+        </select>
+      </div>
+      
+      <div class="btn-group">
+        <button id="saveBtn">保存设置</button>
+      </div>
+      
+      <div id="status" class="status">✓ 设置已保存!</div>
+    </div>
+    
+    <div id="historyTab" class="tab-content">
+      <div class="history-preview">
+        <h3>最近的搜索</h3>
+        <div id="historyPreviewList">
+          <!-- 最近的历史记录将通过JavaScript动态插入 -->
+          <div class="history-preview-empty">加载中...</div>
+        </div>
+        <div class="view-all">
+          <button id="viewAllHistoryBtn" class="btn btn-outline">查看全部历史</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html> 
