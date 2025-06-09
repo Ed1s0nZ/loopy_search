@@ -1,6 +1,6 @@
 // 全局变量
-let aiSearchButton = null;
 let aiSearchResult = null;
+let aiSearchButton = null;
 let selectedText = '';
 let rawResult = ''; // 存储原始结果文本
 let isMarkdownMode = true; // 默认使用Markdown模式
@@ -679,74 +679,19 @@ async function fetchAIResponse(apiUrl, apiKey, model, prompt) {
   }
 }
 
-// 保存会话状态
-function saveSessionState(sessionData) {
-  chrome.storage.local.set({ lastSession: sessionData }, function() {
-    console.log('会话状态已保存:', sessionData);
-  });
-}
-
-// 恢复上次会话
-function restoreLastSession() {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get('lastSession', function(data) {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-      
-      if (data.lastSession) {
-        resolve(data.lastSession);
-      } else {
-        reject(new Error('没有找到上次的会话'));
-      }
-    });
-  });
-}
-
-// 添加会话恢复按钮到错误界面
-function addSessionRecoveryButton(errorContainer) {
-  chrome.storage.local.get('lastSession', function(data) {
-    if (data.lastSession) {
-      const lastSession = data.lastSession;
-      const timeDiff = Date.now() - lastSession.timestamp;
-      
-      // 只有在30分钟内的会话才显示恢复按钮
-      if (timeDiff < 30 * 60 * 1000) {
-        const recoveryButton = document.createElement('button');
-        recoveryButton.className = 'ai-search-result-recovery-button';
-        recoveryButton.textContent = '恢复上次会话';
-        recoveryButton.addEventListener('click', function() {
-          // 显示加载状态
-          showLoadingState();
-          
-          // 使用保存的参数重新发送请求
-          fetchAIResponse(lastSession.apiUrl, null, lastSession.model, lastSession.prompt)
-            .then(response => {
-              // 显示结果
-              showAISearchResultWindow(response.content);
-              
-              // 清除会话数据
-              chrome.storage.local.remove('lastSession');
-            })
-            .catch(error => {
-              console.error('恢复会话失败:', error);
-              showErrorState('恢复会话失败', error.message);
-            });
-        });
-        
-        errorContainer.appendChild(recoveryButton);
-      }
-    }
-  });
-}
-
 // 显示错误状态
 function showErrorState(title, message) {
   console.error(`错误: ${title} - ${message}`);
   
-  if (!aiSearchResult) {
+  // 确保aiSearchResult存在
+  if (typeof aiSearchResult === 'undefined' || !aiSearchResult) {
     createAISearchResultWindow();
+  }
+  
+  // 获取结果窗口
+  if (!document.querySelector('.ai-search-result')) {
+    console.error('无法创建结果窗口');
+    return;
   }
   
   const content = aiSearchResult.querySelector('.ai-search-result-content');
@@ -791,22 +736,6 @@ function rateResult(rating) {
 
 // 用AI搜索所选文本
 function searchWithAI(text, template = null) {
-  // 如果没有选中文本，直接返回
-  if (!text) {
-    console.log('没有选中文本，返回');
-    return;
-  }
-  
-  console.log('开始 AI 搜索:', { text, template });
-  
-  // 显示加载状态
-  showLoadingState();
-  
-  // 生成搜索ID
-  currentSearchId = generateId();
-  console.log('生成搜索ID:', currentSearchId);
-  
-  // 获取API设置
   chrome.storage.sync.get({
     apiUrl: 'https://api.openai.com/v1/chat/completions',
     apiKey: '',
@@ -817,23 +746,13 @@ function searchWithAI(text, template = null) {
     useMarkdown: true,
     saveHistory: true
   }, async function(items) {
-    console.log('获取到API设置:', { 
-      apiUrl: items.apiUrl,
-      model: items.model,
-      hasApiKey: !!items.apiKey,
-      useMarkdown: items.useMarkdown
-    });
-    
-    // 更新Markdown模式设置
-    isMarkdownMode = items.useMarkdown;
-    
-    // 检查API密钥
     if (!items.apiKey) {
-      console.error('API密钥未设置');
-      hideLoadingState();
       showErrorState('API密钥未设置', '请先在扩展设置中配置API密钥');
       return;
     }
+
+    // 显示加载状态
+    showLoadingState();
     
     try {
       // 构建提示词
@@ -859,19 +778,13 @@ function searchWithAI(text, template = null) {
         finalPrompt
       );
       
-      // 如果是并发限制错误，显示等待提示
-      if (!response.success && response.isRateLimit) {
-        showLoadingState('正在等待API响应，请稍候...');
-        // 1秒后自动重试
-        setTimeout(() => {
-          searchWithAI(text, template);
-        }, 1000);
-        return;
+      if (!response.success) {
+        throw new Error(response.error || '未知错误');
       }
       
       console.log('收到API响应:', { success: response.success });
       
-      if (response.success && response.content) {
+      if (response.content) {
         // 保存原始结果
         rawResult = response.content;
         
@@ -905,7 +818,7 @@ function searchWithAI(text, template = null) {
           });
         }
       } else {
-        throw new Error(response.error || '未知错误');
+        throw new Error('API返回内容为空');
       }
     } catch (error) {
       console.error('AI搜索错误:', error);
