@@ -8,13 +8,78 @@ let networkStatus = { // 网络状态监控
   lastError: null
 };
 
+// 更新上下文菜单
+function updateContextMenus() {
+  // 先移除所有现有的菜单项
+  chrome.contextMenus.removeAll(() => {
+    // 创建主菜单项
+    chrome.contextMenus.create({
+      id: "aiSearchParent",
+      title: "AI划词搜索",
+      contexts: ["selection"]
+    });
+
+    // 获取所有提示词模板和默认提示词前缀
+    chrome.storage.sync.get({ 
+      promptTemplates: [],
+      prompt: '请解释以下内容:'
+    }, function(data) {
+      const templates = data.promptTemplates;
+      
+      // 创建默认提示词前缀菜单项
+      chrome.contextMenus.create({
+        id: "defaultPrompt",
+        title: "默认提示词前缀",
+        parentId: "aiSearchParent",
+        contexts: ["selection"]
+      });
+      
+      // 添加分隔线
+      chrome.contextMenus.create({
+        id: "separator",
+        type: "separator",
+        parentId: "aiSearchParent",
+        contexts: ["selection"]
+      });
+      
+      // 按分类对模板进行分组
+      const groupedTemplates = {};
+      templates.forEach(template => {
+        const category = template.category || '通用';
+        if (!groupedTemplates[category]) {
+          groupedTemplates[category] = [];
+        }
+        groupedTemplates[category].push(template);
+      });
+
+      // 为每个分类创建子菜单
+      Object.entries(groupedTemplates).forEach(([category, categoryTemplates]) => {
+        // 创建分类子菜单
+        const categoryId = `category_${category}`;
+        chrome.contextMenus.create({
+          id: categoryId,
+          title: category,
+          parentId: "aiSearchParent",
+          contexts: ["selection"]
+        });
+
+        // 为分类下的每个提示词创建菜单项
+        categoryTemplates.forEach(template => {
+          chrome.contextMenus.create({
+            id: `prompt_${template.title}`,
+            title: template.title,
+            parentId: categoryId,
+            contexts: ["selection"]
+          });
+        });
+      });
+    });
+  });
+}
+
 // 创建右键菜单
 chrome.runtime.onInstalled.addListener(function() {
-  chrome.contextMenus.create({
-    id: "aiSearch",
-    title: "使用AI解释「%s」",
-    contexts: ["selection"]
-  });
+  updateContextMenus();
   
   // 设置键盘快捷键说明
   chrome.commands.getAll(function(commands) {
@@ -42,54 +107,127 @@ chrome.runtime.onInstalled.addListener(function() {
   });
 });
 
+// 监听存储变化，更新菜单
+chrome.storage.onChanged.addListener(function(changes, namespace) {
+  if (namespace === 'sync') {
+    if (changes.promptTemplates || changes.customCategories) {
+      updateContextMenus();
+    }
+    // 监听历史记录保留天数的变化
+    if (changes.historyRetention) {
+      historyRetentionDays = changes.historyRetention.newValue;
+      console.debug('历史记录保留天数已更新:', historyRetentionDays);
+      // 立即执行一次清理
+      cleanupHistory();
+    }
+  }
+});
+
 // 处理右键菜单点击事件
 chrome.contextMenus.onClicked.addListener(function(info, tab) {
-  if (info.menuItemId === "aiSearch" && info.selectionText) {
-    // 记录选中的文本，以防传递失败
-    lastSelectedText = info.selectionText;
-    
-    try {
-      // 发送消息到内容脚本
-      chrome.tabs.sendMessage(tab.id, {
-        action: "searchWithAI",
-        text: info.selectionText
-      }, function(response) {
-        // 检查是否有响应
-        if (chrome.runtime.lastError) {
-          console.error("发送消息错误:", chrome.runtime.lastError);
-          
-          // 如果内容脚本未响应，可能是尚未加载，尝试注入内容脚本
-          // 先注入marked.min.js，然后再注入content.js
-          chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['marked.min.js']
-          }, function() {
-            // 注入CSS
-            chrome.scripting.insertCSS({
+  if (!info.selectionText) return;
+
+  // 记录选中的文本
+  lastSelectedText = info.selectionText;
+
+  if (info.menuItemId === "defaultPrompt") {
+    // 使用默认提示词
+    chrome.storage.sync.get({ prompt: '请解释以下内容:' }, function(data) {
+      try {
+        chrome.tabs.sendMessage(tab.id, {
+          action: "searchWithAI",
+          text: info.selectionText,
+          template: {
+            title: "默认提示词",
+            content: data.prompt + '\n' + info.selectionText,
+            category: "通用"
+          }
+        }, function(response) {
+          if (chrome.runtime.lastError) {
+            console.debug("发送消息错误:", chrome.runtime.lastError);
+            
+            // 如果内容脚本未响应，注入所需脚本
+            chrome.scripting.executeScript({
               target: { tabId: tab.id },
-              files: ['content.css']
+              files: ['marked.min.js']
             }, function() {
-              // 然后注入主脚本
-              chrome.scripting.executeScript({
+              chrome.scripting.insertCSS({
                 target: { tabId: tab.id },
-                files: ['content.js']
+                files: ['content.css']
               }, function() {
-                // 再次尝试发送消息
-                setTimeout(function() {
-                  chrome.tabs.sendMessage(tab.id, {
-                    action: "searchWithAI",
-                    text: info.selectionText
-                  });
-                }, 500); // 等待脚本加载
+                chrome.scripting.executeScript({
+                  target: { tabId: tab.id },
+                  files: ['content.js']
+                }, function() {
+                  setTimeout(function() {
+                    chrome.tabs.sendMessage(tab.id, {
+                      action: "searchWithAI",
+                      text: info.selectionText,
+                      template: {
+                        title: "默认提示词",
+                        content: data.prompt + '\n' + info.selectionText,
+                        category: "通用"
+                      }
+                    });
+                  }, 500);
+                });
               });
             });
+          }
+        });
+      } catch (error) {
+        console.debug("右键菜单处理错误:", error);
+        lastError = error;
+      }
+    });
+  } else if (info.menuItemId.startsWith('prompt_')) {
+    const promptTitle = info.menuItemId.replace('prompt_', '');
+    
+    // 获取对应的提示词模板
+    chrome.storage.sync.get({ promptTemplates: [] }, function(data) {
+      const template = data.promptTemplates.find(t => t.title === promptTitle);
+      if (template) {
+        // 发送消息到内容脚本，包含提示词模板
+        try {
+          chrome.tabs.sendMessage(tab.id, {
+            action: "searchWithAI",
+            text: info.selectionText,
+            template: template
+          }, function(response) {
+            if (chrome.runtime.lastError) {
+              console.debug("发送消息错误:", chrome.runtime.lastError);
+              
+              // 如果内容脚本未响应，注入所需脚本
+              chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['marked.min.js']
+              }, function() {
+                chrome.scripting.insertCSS({
+                  target: { tabId: tab.id },
+                  files: ['content.css']
+                }, function() {
+                  chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['content.js']
+                  }, function() {
+                    setTimeout(function() {
+                      chrome.tabs.sendMessage(tab.id, {
+                        action: "searchWithAI",
+                        text: info.selectionText,
+                        template: template
+                      });
+                    }, 500);
+                  });
+                });
+              });
+            }
           });
+        } catch (error) {
+          console.debug("右键菜单处理错误:", error);
+          lastError = error;
         }
-      });
-    } catch (error) {
-      console.error("右键菜单处理错误:", error);
-      lastError = error;
-    }
+      }
+    });
   }
 });
 
@@ -128,24 +266,51 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
 
 // 清理过期的历史记录
 function cleanupHistory() {
+  console.debug('开始清理历史记录, 保留天数:', historyRetentionDays);
+  
   // 如果设置为永久保留，则不执行清理
-  if (historyRetentionDays === 0) return;
+  if (historyRetentionDays === 0) {
+    console.debug('历史记录设置为永久保留，跳过清理');
+    return;
+  }
   
   chrome.storage.local.get('searchHistory', function(data) {
     const history = data.searchHistory || [];
+    console.debug('当前历史记录数量:', history.length);
     
-    if (history.length === 0) return;
+    if (history.length === 0) {
+      console.debug('没有历史记录需要清理');
+      return;
+    }
     
     const now = Date.now();
     const cutoffTime = now - (historyRetentionDays * 24 * 60 * 60 * 1000);
+    console.debug('清理截止时间:', new Date(cutoffTime).toLocaleString());
     
     // 过滤掉过期的记录
-    const updatedHistory = history.filter(item => item.timestamp > cutoffTime);
+    const updatedHistory = history.filter(item => {
+      const keep = item.timestamp > cutoffTime;
+      if (!keep) {
+        console.debug('将删除过期记录:', {
+          query: item.query.substring(0, 50) + '...',
+          timestamp: new Date(item.timestamp).toLocaleString()
+        });
+      }
+      return keep;
+    });
     
     // 如果有记录被删除，则更新存储
     if (updatedHistory.length < history.length) {
-      chrome.storage.local.set({ searchHistory: updatedHistory });
-      console.log(`已清理 ${history.length - updatedHistory.length} 条过期历史记录`);
+      console.debug(`清理完成: 从 ${history.length} 条记录减少到 ${updatedHistory.length} 条`);
+      chrome.storage.local.set({ searchHistory: updatedHistory }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('保存更新后的历史记录失败:', chrome.runtime.lastError);
+        } else {
+          console.debug('已成功保存更新后的历史记录');
+        }
+      });
+    } else {
+      console.debug('没有找到需要清理的记录');
     }
   });
 }
@@ -176,6 +341,11 @@ function checkNetworkStatus() {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   try {
     if (request.action === 'fetchAIResponse') {
+      console.debug('收到 API 请求:', {
+        url: request.apiUrl,
+        model: request.data.model
+      });
+
       // 处理 API 请求
       fetch(request.apiUrl, {
         method: 'POST',
@@ -186,28 +356,37 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         body: JSON.stringify(request.data)
       })
       .then(async response => {
+        console.debug('收到 API 响应:', {
+          status: response.status,
+          ok: response.ok
+        });
+
         if (!response.ok) {
           const errorText = await response.text();
           let errorMessage;
           try {
             const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.error?.message || errorJson.message || `HTTP错误: ${response.status}`;
+            errorMessage = errorJson.error?.message || errorJson.message || `请求失败 (${response.status})`;
           } catch (e) {
-            errorMessage = `HTTP错误: ${response.status}, ${errorText}`;
+            errorMessage = `请求失败 (${response.status}): ${errorText}`;
           }
+          console.debug('API 错误:', errorMessage);
           sendResponse({ success: false, error: errorMessage });
         } else {
           const data = await response.json();
+          console.debug('API 响应数据:', {
+            hasChoices: !!data.choices,
+            choicesLength: data.choices?.length
+          });
           sendResponse({ success: true, data: data });
         }
       })
       .catch(error => {
-        sendResponse({ 
-          success: false, 
-          error: error.message || '请求失败，请检查网络连接和API密钥是否正确'
-        });
+        console.debug('API 请求失败:', error);
+        sendResponse({ success: false, error: error.message });
       });
-      return true; // 表示我们会异步发送响应
+
+      return true; // 保持消息通道开放
     } else if (request.action === 'getIconUrl') {
       sendResponse({ url: chrome.runtime.getURL('images/icon48.png') });
     } else if (request.action === 'saveSearchHistory') {
@@ -226,8 +405,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
               url: chrome.runtime.getURL('popup.html')
             }, function() {
               if (chrome.runtime.lastError) {
-                console.error('打开设置页面失败:', chrome.runtime.lastError);
-                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                console.debug('打开设置页面失败:', chrome.runtime.lastError);
+                sendResponse({ success: false, error: '无法打开设置页面' });
               } else {
                 sendResponse({ success: true });
               }
@@ -237,20 +416,14 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
           }
         });
       } catch (error) {
-        console.error('打开设置页面时出错:', error);
-        // 使用备用方法
-        chrome.tabs.create({
-          url: chrome.runtime.getURL('popup.html')
-        }, function() {
-          sendResponse({ success: true });
-        });
+        console.debug('打开设置页面时出错:', error);
+        sendResponse({ success: false, error: '无法打开设置页面' });
       }
       return true; // 表示我们会异步发送响应
     } else if (request.action === 'getLastError') {
       sendResponse({ error: lastError });
       lastError = null; // 清除错误
     } else if (request.action === 'getNetworkStatus') {
-      checkNetworkStatus();
       sendResponse({ 
         status: networkStatus,
         extensionInfo: {
@@ -260,38 +433,53 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       });
     }
   } catch (error) {
-    console.error('处理消息时出错:', error);
-    sendResponse({ 
-      success: false, 
-      error: error.message || '发生未知错误'
-    });
+    console.debug('消息处理错误:', error);
+    sendResponse({ success: false, error: '内部错误，请稍后重试' });
   }
+  return true; // 保持消息通道开放
 });
 
 // 保存搜索历史
 function saveSearchHistory(data) {
   const id = generateId();
+  const timestamp = Date.now();
+  
+  console.debug('准备保存历史记录:', {
+    id: id,
+    timestamp: new Date(timestamp).toLocaleString(),
+    queryLength: data.query.length
+  });
   
   chrome.storage.sync.get({ saveHistory: true }, function(config) {
     // 如果用户禁用了历史记录，则不保存
-    if (!config.saveHistory) return;
+    if (!config.saveHistory) {
+      console.debug('历史记录功能已禁用，跳过保存');
+      return;
+    }
     
     chrome.storage.local.get('searchHistory', function(storage) {
       const history = storage.searchHistory || [];
+      console.debug('当前历史记录数量:', history.length);
       
       // 添加新记录
       const newRecord = {
         id: id,
         query: data.query,
         response: data.response,
-        timestamp: Date.now(),
+        timestamp: timestamp,
         rating: 0 // 0=无评分, 1=点赞, -1=踩
       };
       
       history.push(newRecord);
       
       // 保存更新后的历史记录
-      chrome.storage.local.set({ searchHistory: history });
+      chrome.storage.local.set({ searchHistory: history }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('保存历史记录失败:', chrome.runtime.lastError);
+        } else {
+          console.debug('历史记录保存成功，新的总数量:', history.length);
+        }
+      });
     });
   });
   

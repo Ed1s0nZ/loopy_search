@@ -7,6 +7,11 @@ let isMarkdownMode = true; // 默认使用Markdown模式
 let currentSearchId = null; // 当前搜索的ID
 let showFloatingButton = false; // 默认不显示浮动按钮
 
+// 生成唯一ID
+function generateId() {
+  return 'search_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
 // 初始化时读取用户设置
 chrome.storage.sync.get({
   useMarkdown: true
@@ -16,34 +21,43 @@ chrome.storage.sync.get({
 
 // 创建AI搜索按钮
 function createAISearchButton() {
+  // 如果按钮已存在，先移除旧的按钮
   if (aiSearchButton) {
-    document.body.removeChild(aiSearchButton);
+    if (aiSearchButton.parentNode) {
+      aiSearchButton.parentNode.removeChild(aiSearchButton);
+    }
+    aiSearchButton = null;
   }
 
-  aiSearchButton = document.createElement('div');
-  aiSearchButton.className = 'ai-search-button';
-  aiSearchButton.title = '使用AI解释所选文本';
+  // 创建新按钮
+  const button = document.createElement('div');
+  button.className = 'ai-search-button';
+  button.title = '使用AI解释所选文本';
   
   const buttonImage = document.createElement('img');
   buttonImage.src = chrome.runtime.getURL('images/icon48.png');
-  aiSearchButton.appendChild(buttonImage);
+  button.appendChild(buttonImage);
   
   // 添加波纹效果
-  aiSearchButton.addEventListener('mousedown', function(e) {
+  button.addEventListener('mousedown', function(e) {
     this.style.transform = 'scale(0.95)';
   });
   
-  aiSearchButton.addEventListener('mouseup', function(e) {
+  button.addEventListener('mouseup', function(e) {
     this.style.transform = 'scale(1.1)';
   });
   
-  aiSearchButton.addEventListener('mouseleave', function(e) {
+  button.addEventListener('mouseleave', function(e) {
     this.style.transform = '';
   });
   
-  aiSearchButton.addEventListener('click', handleAISearchButtonClick);
-  document.body.appendChild(aiSearchButton);
-  return aiSearchButton;
+  button.addEventListener('click', handleAISearchButtonClick);
+  document.body.appendChild(button);
+  
+  // 更新全局变量
+  aiSearchButton = button;
+  
+  return button;
 }
 
 // 检测文本语言
@@ -251,7 +265,7 @@ function createAISearchResultWindow() {
         // 发送翻译请求
         fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
           .then(response => {
-            showAISearchResultWindow(response);
+            showAISearchResultWindow(response.content);
             translateButton.textContent = '翻译';
             translateButton.disabled = false;
           })
@@ -345,14 +359,21 @@ function simpleMarkdown(text) {
 
 // 更新结果内容
 async function updateResultContent(result) {
+  // 如果当前是错误状态，不更新内容
+  if (aiSearchResult && aiSearchResult.dataset.errorState === 'true') {
+    return;
+  }
+
   if (!result) {
-    console.error('结果为空');
+    console.debug('结果为空，显示错误提示');
+    showErrorState('内容为空', '抱歉，未能获取到有效的响应内容');
     return;
   }
 
   const content = aiSearchResult.querySelector('.ai-search-result-content');
   if (!content) {
-    console.error('找不到内容容器');
+    console.debug('找不到内容容器，显示错误提示');
+    showErrorState('显示错误', '内容显示区域加载失败');
     return;
   }
 
@@ -364,54 +385,87 @@ async function updateResultContent(result) {
       // 创建一个包装容器
       const markdownContainer = document.createElement('div');
       markdownContainer.className = 'markdown-body';
-      markdownContainer.innerHTML = htmlContent;
+      markdownContainer.innerHTML = htmlContent || '内容为空';
       
       // 清空内容区域并添加新内容
       content.innerHTML = '';
       content.appendChild(markdownContainer);
     } else {
-      content.textContent = result;
+      content.textContent = result || '内容为空';
+    }
+
+    // 验证内容是否成功显示
+    if (!content.textContent && !content.innerHTML) {
+      throw new Error('内容渲染失败');
     }
   } catch (error) {
-    console.error('渲染内容时出错:', error);
-    content.textContent = result; // 如果解析失败，退回到纯文本
+    console.debug('渲染内容时出错:', error);
+    showErrorState('显示错误', `内容显示失败: ${error.message}`);
   }
 }
 
 // 显示AI搜索结果
 function showAISearchResultWindow(result) {
-  rawResult = result; // 保存原始结果
-  const resultWindow = createAISearchResultWindow();
-  updateResultContent(result);
+  try {
+    if (!result) {
+      throw new Error('响应内容为空');
+    }
+    
+    rawResult = result; // 保存原始结果
+    const resultWindow = createAISearchResultWindow();
+    
+    if (!resultWindow) {
+      throw new Error('结果窗口创建失败');
+    }
+    
+    updateResultContent(result);
+  } catch (error) {
+    console.error('显示结果时出错:', error);
+    showErrorState('显示错误', error.message);
+  }
 }
 
 // 隐藏AI搜索结果窗口
 function hideAISearchResultWindow() {
-  if (aiSearchResult && aiSearchResult.parentNode) {
-    aiSearchResult.parentNode.removeChild(aiSearchResult);
+  if (aiSearchResult) {
+    // 清除错误状态标记
+    delete aiSearchResult.dataset.errorState;
+    
+    if (aiSearchResult.parentNode) {
+      aiSearchResult.parentNode.removeChild(aiSearchResult);
+    }
     aiSearchResult = null;
   }
 }
 
 // 显示加载状态
-function showLoadingState() {
-  const resultWindow = createAISearchResultWindow();
-  const content = resultWindow.querySelector('.ai-search-result-content');
+function showLoadingState(message = '正在思考中...') {
+  if (!aiSearchResult) {
+    createAISearchResultWindow();
+  }
   
-  content.innerHTML = '';
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'ai-search-result-loading';
+  const content = aiSearchResult.querySelector('.ai-search-result-content');
+  if (!content) return;
   
-  const spinner = document.createElement('div');
-  spinner.className = 'ai-search-result-loading-spinner';
-  loadingDiv.appendChild(spinner);
+  content.innerHTML = `
+    <div class="ai-search-result-loading">
+      <div class="ai-search-result-loading-spinner"></div>
+      <div class="ai-search-result-loading-text">${message}</div>
+    </div>
+  `;
   
-  const loadingText = document.createElement('div');
-  loadingText.className = 'ai-search-result-loading-text';
-  loadingText.textContent = '正在思考中...';
-  loadingDiv.appendChild(loadingText);
+  // 显示结果窗口
+  aiSearchResult.style.display = 'block';
+}
+
+// 隐藏加载状态
+function hideLoadingState() {
+  if (!aiSearchResult) return;
   
-  content.appendChild(loadingDiv);
+  const loadingElement = aiSearchResult.querySelector('.ai-search-result-loading');
+  if (loadingElement) {
+    loadingElement.remove();
+  }
 }
 
 // 检查网络状态并显示详细信息
@@ -553,10 +607,14 @@ function runNetworkDiagnostics(container) {
   });
 }
 
-// 发送API请求获取AI响应，支持重试
-async function fetchAIResponse(apiUrl, apiKey, model, prompt, retryCount = 0, maxRetries = 2) {
+// 发送API请求获取AI响应
+async function fetchAIResponse(apiUrl, apiKey, model, prompt) {
   try {
-    console.log('开始API请求:', { url: apiUrl, model: model, retryCount });
+    console.log('开始API请求:', { 
+      url: apiUrl, 
+      model: model,
+      promptLength: prompt.length 
+    });
     
     // 通过 background.js 发送请求
     const response = await new Promise((resolve, reject) => {
@@ -585,51 +643,38 @@ async function fetchAIResponse(apiUrl, apiKey, model, prompt, retryCount = 0, ma
       });
     });
 
-    console.log('API响应数据:', response.data);
-    
     // 提取回复内容
     if (response.data.choices && response.data.choices.length > 0) {
       const content = response.data.choices[0].message?.content;
       if (!content) {
         throw new Error('API响应中没有找到内容');
       }
-      return content;
+      return { success: true, content: content };
     } else {
-      console.error('API响应格式异常:', response.data);
       throw new Error('API响应格式异常，未找到有效内容');
     }
   } catch (error) {
     console.error('API请求异常:', error);
     
-    // 检查是否是网络错误或 API 密钥错误
+    // 检查是否是并发限制错误
     const errorMessage = error.message.toLowerCase();
+    if (errorMessage.includes('concurrent') || 
+        errorMessage.includes('concurrency') || 
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('请求达到最大并发数')) {
+      console.log('API并发限制，等待重试');
+      // 不向用户显示错误，直接返回特殊标记
+      return { success: false, isRateLimit: true };
+    }
+    
+    // 检查是否是 API 密钥错误
     if (errorMessage.includes('api key') || errorMessage.includes('apikey')) {
       throw new Error('API密钥无效，请在设置中检查并更新API密钥');
     } else if (errorMessage.includes('network') || errorMessage.includes('failed to fetch')) {
-      // 检查网络状态
-      try {
-        const networkStatus = await checkNetworkStatus();
-        if (!networkStatus.status.isOnline && retryCount < maxRetries) {
-          console.log('网络离线，等待恢复后重试...');
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          return fetchAIResponse(apiUrl, apiKey, model, prompt, retryCount + 1, maxRetries);
-        }
-      } catch (e) {
-        console.error('检查网络状态失败:', e);
-      }
       throw new Error('网络连接失败，请检查网络设置');
     }
     
-    // 保存会话状态，以便恢复
-    saveSessionState({
-      apiUrl: apiUrl,
-      model: model,
-      prompt: prompt,
-      text: selectedText,
-      timestamp: Date.now()
-    });
-    
-    // 重新抛出错误，使用更友好的错误信息
+    // 其他错误正常抛出
     throw new Error(`请求失败: ${error.message}`);
   }
 }
@@ -679,7 +724,7 @@ function addSessionRecoveryButton(errorContainer) {
           fetchAIResponse(lastSession.apiUrl, null, lastSession.model, lastSession.prompt)
             .then(response => {
               // 显示结果
-              showAISearchResultWindow(response);
+              showAISearchResultWindow(response.content);
               
               // 清除会话数据
               chrome.storage.local.remove('lastSession');
@@ -697,7 +742,9 @@ function addSessionRecoveryButton(errorContainer) {
 }
 
 // 显示错误状态
-function showErrorState(errorTitle, errorMessage) {
+function showErrorState(title, message) {
+  console.error(`错误: ${title} - ${message}`);
+  
   if (!aiSearchResult) {
     createAISearchResultWindow();
   }
@@ -705,78 +752,20 @@ function showErrorState(errorTitle, errorMessage) {
   const content = aiSearchResult.querySelector('.ai-search-result-content');
   if (!content) return;
   
-  // 清空内容
-  content.innerHTML = '';
+  // 标记错误状态
+  aiSearchResult.dataset.errorState = 'true';
   
-  // 创建错误容器
-  const errorContainer = document.createElement('div');
-  errorContainer.className = 'ai-search-result-error';
+  content.innerHTML = `
+    <div class="ai-search-result-error">
+      <div class="ai-search-result-error-icon">❌</div>
+      <div class="ai-search-result-error-title">${title}</div>
+      <div class="ai-search-result-error-message">${message}</div>
+      <button class="ai-search-result-retry-button" onclick="window.location.reload()">重试</button>
+    </div>
+  `;
   
-  // 添加错误图标
-  const errorIcon = document.createElement('div');
-  errorIcon.className = 'ai-search-result-error-icon';
-  errorIcon.innerHTML = '⚠️';
-  errorContainer.appendChild(errorIcon);
-  
-  // 添加错误标题
-  const titleElement = document.createElement('h3');
-  titleElement.textContent = errorTitle;
-  errorContainer.appendChild(titleElement);
-  
-  // 添加错误信息
-  const messageElement = document.createElement('p');
-  messageElement.textContent = errorMessage;
-  errorContainer.appendChild(messageElement);
-  
-  // 创建按钮容器
-  const buttonsContainer = document.createElement('div');
-  buttonsContainer.className = 'ai-search-result-buttons';
-  
-  // 添加重试按钮
-  const retryButton = document.createElement('button');
-  retryButton.className = 'ai-search-result-retry-button';
-  retryButton.textContent = '重试';
-  retryButton.addEventListener('click', function() {
-    if (selectedText) {
-      searchWithAI(selectedText);
-    }
-  });
-  buttonsContainer.appendChild(retryButton);
-  
-  // 添加按钮容器到错误容器
-  errorContainer.appendChild(buttonsContainer);
-  
-  // 添加诊断信息
-  const diagnosticsContainer = document.createElement('div');
-  diagnosticsContainer.className = 'ai-search-result-diagnostics';
-  
-  // 添加API服务状态
-  const item = document.createElement('div');
-  item.className = 'ai-search-result-diagnostic-item';
-  
-  const status = document.createElement('span');
-  status.className = 'ai-search-result-diagnostic-status error';
-  status.textContent = '✗';
-  
-  const text = document.createElement('span');
-  text.className = 'ai-search-result-diagnostic-text';
-  text.textContent = '您的API服务: 不可访问';
-  
-  item.appendChild(status);
-  item.appendChild(text);
-  diagnosticsContainer.appendChild(item);
-  
-  // 添加在线状态
-  const onlineStatus = document.createElement('div');
-  onlineStatus.className = 'ai-search-result-online-status';
-  onlineStatus.textContent = `在线状态: ${navigator.onLine ? '在线' : '离线'}`;
-  diagnosticsContainer.appendChild(onlineStatus);
-  
-  // 添加诊断容器到错误容器
-  errorContainer.appendChild(diagnosticsContainer);
-  
-  // 添加到内容区域
-  content.appendChild(errorContainer);
+  // 显示结果窗口
+  aiSearchResult.style.display = 'block';
 }
 
 // 评价结果
@@ -801,49 +790,128 @@ function rateResult(rating) {
 }
 
 // 用AI搜索所选文本
-function searchWithAI(text) {
+function searchWithAI(text, template = null) {
+  // 如果没有选中文本，直接返回
+  if (!text) {
+    console.log('没有选中文本，返回');
+    return;
+  }
+  
+  console.log('开始 AI 搜索:', { text, template });
+  
   // 显示加载状态
   showLoadingState();
+  
+  // 生成搜索ID
+  currentSearchId = generateId();
+  console.log('生成搜索ID:', currentSearchId);
   
   // 获取API设置
   chrome.storage.sync.get({
     apiUrl: 'https://api.openai.com/v1/chat/completions',
     apiKey: '',
+    model: 'gpt-3.5-turbo',
+    customModel: '',
+    prompt: '请解释以下内容:',
     actualModel: 'gpt-3.5-turbo',
-    prompt: '请解释以下内容:'
-  }, function(items) {
-    // 检查API设置是否完整
-    if (!items.apiUrl || !items.apiKey) {
-      showErrorState('API配置不完整', '请先在扩展设置中配置API地址和密钥');
+    useMarkdown: true,
+    saveHistory: true
+  }, async function(items) {
+    console.log('获取到API设置:', { 
+      apiUrl: items.apiUrl,
+      model: items.model,
+      hasApiKey: !!items.apiKey,
+      useMarkdown: items.useMarkdown
+    });
+    
+    // 更新Markdown模式设置
+    isMarkdownMode = items.useMarkdown;
+    
+    // 检查API密钥
+    if (!items.apiKey) {
+      console.error('API密钥未设置');
+      hideLoadingState();
+      showErrorState('API密钥未设置', '请先在扩展设置中配置API密钥');
       return;
     }
     
-    // 构建完整的提示词
-    const fullPrompt = `${items.prompt}\n\n${text}`;
-    
-    // 发送API请求
-    fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, fullPrompt)
-      .then(response => {
-        // 保存搜索历史
-        chrome.runtime.sendMessage({
-          action: 'saveSearchHistory',
-          data: {
-            query: text,
-            response: response
-          }
-        }, function(res) {
-          if (res && res.id) {
-            currentSearchId = res.id;
-          }
+    try {
+      // 构建提示词
+      let finalPrompt;
+      if (template) {
+        finalPrompt = template.content + '\n' + text;
+        console.log('使用模板提示词:', { 
+          templateTitle: template.title,
+          templateCategory: template.category
         });
+      } else {
+        finalPrompt = items.prompt + '\n' + text;
+        console.log('使用默认提示词');
+      }
+      
+      console.log('准备发送API请求');
+      
+      // 获取响应
+      const response = await fetchAIResponse(
+        items.apiUrl,
+        items.apiKey,
+        items.actualModel,
+        finalPrompt
+      );
+      
+      // 如果是并发限制错误，显示等待提示
+      if (!response.success && response.isRateLimit) {
+        showLoadingState('正在等待API响应，请稍候...');
+        // 1秒后自动重试
+        setTimeout(() => {
+          searchWithAI(text, template);
+        }, 1000);
+        return;
+      }
+      
+      console.log('收到API响应:', { success: response.success });
+      
+      if (response.success && response.content) {
+        // 保存原始结果
+        rawResult = response.content;
         
-        // 显示结果
-        showAISearchResultWindow(response);
-      })
-      .catch(error => {
-        console.error('API请求错误:', error);
-        showErrorState('API请求失败', `详细错误信息: ${error.message || '未知错误'}`);
-      });
+        // 更新结果显示
+        console.log('更新结果显示');
+        showAISearchResultWindow(response.content);
+        
+        // 如果启用了历史记录保存
+        if (items.saveHistory) {
+          console.log('保存到历史记录');
+          const historyData = {
+            query: text,
+            response: response.content,
+            template: template ? {
+              title: template.title,
+              category: template.category
+            } : null
+          };
+          
+          // 保存到历史记录
+          chrome.runtime.sendMessage({
+            action: 'saveSearchHistory',
+            data: historyData
+          }, function(response) {
+            if (chrome.runtime.lastError) {
+              console.error('保存历史记录失败:', chrome.runtime.lastError);
+            } else if (response && response.id) {
+              console.log('历史记录保存成功，ID:', response.id);
+              currentSearchId = response.id;
+            }
+          });
+        }
+      } else {
+        throw new Error(response.error || '未知错误');
+      }
+    } catch (error) {
+      console.error('AI搜索错误:', error);
+      hideLoadingState();
+      showErrorState('请求失败', error.message);
+    }
   });
 }
 
@@ -902,10 +970,14 @@ function showTranslationOptions(detectedLang) {
       // 发送翻译请求
       fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
         .then(response => {
-          showAISearchResultWindow(response);
+          showAISearchResultWindow(response.content);
+          translateButton.textContent = '翻译';
+          translateButton.disabled = false;
         })
         .catch(error => {
           showErrorState('翻译失败', error.message);
+          translateButton.textContent = '翻译';
+          translateButton.disabled = false;
         });
     });
     
@@ -928,7 +1000,7 @@ function showTranslationOptions(detectedLang) {
       // 发送请求
       fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, bothPrompt)
         .then(response => {
-          showAISearchResultWindow(response);
+          showAISearchResultWindow(response.content);
         })
         .catch(error => {
           showErrorState('请求失败', error.message);
@@ -968,72 +1040,81 @@ function showTranslationOptions(detectedLang) {
   });
 }
 
-// 处理来自后台的消息
+// 监听来自background.js的消息
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  try {
-    if (request.action === "searchWithAI") {
-      if (request.text) {
-        // 如果提供了文本，直接使用
-        selectedText = request.text;
-        searchWithAI(selectedText);
-      } else if (request.useSelectedText) {
-        // 否则使用当前选中的文本
-        const selection = window.getSelection();
-        if (selection && selection.toString().trim() !== '') {
-          selectedText = selection.toString().trim();
-          searchWithAI(selectedText);
-        }
-      }
-      sendResponse({ success: true });
-    } else if (request.action === "translateSelectedText") {
-      // 处理翻译请求
+  if (request.action === "searchWithAI") {
+    if (request.text) {
+      selectedText = request.text;
+      searchWithAI(request.text, request.template);
+    } else if (request.useSelectedText) {
       const selection = window.getSelection();
-      if (selection && selection.toString().trim() !== '') {
+      if (selection && selection.toString().trim()) {
         selectedText = selection.toString().trim();
-        
-        // 检测语言
-        const detectedLang = detectLanguage(selectedText);
-        
-        // 构建翻译提示词
-        let translatePrompt;
-        if (detectedLang === 'zh') {
-          translatePrompt = `请将以下中文文本翻译成英文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-        } else {
-          translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-        }
-        
-        // 获取API设置并发送请求
-        chrome.storage.sync.get({
-          apiUrl: 'https://api.openai.com/v1/chat/completions',
-          apiKey: '',
-          actualModel: 'gpt-3.5-turbo'
-        }, function(items) {
-          fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
-            .then(response => {
-              showAISearchResultWindow(response);
-            })
-            .catch(error => {
-              showErrorState('翻译失败', error.message);
-            });
-        });
+        searchWithAI(selectedText, request.template);
       }
-      sendResponse({ success: true });
     }
-  } catch (error) {
-    console.error("消息处理错误:", error);
-    sendResponse({ success: false, error: error.message });
+  } else if (request.action === "translateSelectedText") {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim() !== '') {
+      selectedText = selection.toString().trim();
+      const detectedLang = detectLanguage(selectedText);
+      let translatePrompt;
+      if (detectedLang === 'zh') {
+        translatePrompt = `请将以下中文文本翻译成英文，只返回翻译结果，不要解释：\n\n${selectedText}`;
+      } else {
+        translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
+      }
+      chrome.storage.sync.get({
+        apiUrl: 'https://api.openai.com/v1/chat/completions',
+        apiKey: '',
+        actualModel: 'gpt-3.5-turbo'
+      }, function(items) {
+        fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
+          .then(response => {
+            showAISearchResultWindow(response);
+          })
+          .catch(error => {
+            showErrorState('翻译失败', error.message);
+          });
+      });
+    }
+    sendResponse({ success: true });
+  } else if (request.action === "showMemo") {
+    // 显示备忘录窗口
+    showMemoWindow();
+    sendResponse({ success: true });
+  } else if (request.action === "addMemo") {
+    // 添加新备忘录
+    if (request.text) {
+      saveMemo(request.text);
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: "没有提供备忘录内容" });
+    }
+  } else if (request.action === "deleteMemo") {
+    // 删除备忘录
+    if (request.id) {
+      deleteMemo(request.id);
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: "没有提供备忘录ID" });
+    }
   }
-  return true; // 保持消息通道开放
 });
 
 // 添加错误恢复机制
 window.addEventListener('error', function(event) {
-  console.error("捕获到错误:", event.error);
+  // 记录错误到控制台，但不显示在界面上
+  console.debug("捕获到错误:", event.error);
   
   // 如果错误发生在AI搜索过程中，显示友好的错误提示
   if (event.error && event.error.message && event.error.message.includes("AI")) {
-    showErrorState("发生意外错误", "插件运行时遇到问题。请刷新页面后重试。");
+    hideLoadingState();
+    showErrorState('AI搜索出错', '抱歉，AI搜索过程中出现了错误。请稍后重试。');
   }
+  
+  // 阻止错误继续传播
+  event.preventDefault();
 });
 
 // 确保DOM加载完成后初始化
@@ -1055,4 +1136,231 @@ function openSettings() {
       console.error('打开设置失败:', chrome.runtime.lastError);
     }
   });
-} 
+}
+
+// 保存备忘录
+function saveMemo(text) {
+  chrome.storage.sync.get({ memos: [] }, function(data) {
+    const memos = data.memos;
+    memos.push({
+      id: Date.now(),
+      text: text,
+      timestamp: new Date().toISOString()
+    });
+    chrome.storage.sync.set({ memos: memos }, function() {
+      console.log('备忘录已保存');
+    });
+  });
+}
+
+// 获取所有备忘录
+function getMemos(callback) {
+  chrome.storage.sync.get({ memos: [] }, function(data) {
+    callback(data.memos);
+  });
+}
+
+// 删除备忘录
+function deleteMemo(id) {
+  chrome.storage.sync.get({ memos: [] }, function(data) {
+    const memos = data.memos.filter(memo => memo.id !== id);
+    chrome.storage.sync.set({ memos: memos }, function() {
+      console.log('备忘录已删除');
+    });
+  });
+}
+
+// 显示备忘录窗口
+function showMemoWindow() {
+  if (!aiSearchResult) {
+    createAISearchResultWindow();
+  }
+  
+  const content = aiSearchResult.querySelector('.ai-search-result-content');
+  content.innerHTML = '';
+  
+  // 创建备忘录容器
+  const memoContainer = document.createElement('div');
+  memoContainer.className = 'ai-memo-container';
+  
+  // 创建输入区域
+  const inputContainer = document.createElement('div');
+  inputContainer.className = 'ai-memo-input-container';
+  
+  const textarea = document.createElement('textarea');
+  textarea.className = 'ai-memo-input';
+  textarea.placeholder = '输入新的备忘录...';
+  
+  const saveButton = document.createElement('button');
+  saveButton.className = 'ai-memo-save-button';
+  saveButton.textContent = '保存';
+  saveButton.addEventListener('click', function() {
+    const text = textarea.value.trim();
+    if (text) {
+      saveMemo(text);
+      textarea.value = '';
+      refreshMemoList();
+    }
+  });
+  
+  inputContainer.appendChild(textarea);
+  inputContainer.appendChild(saveButton);
+  memoContainer.appendChild(inputContainer);
+  
+  // 创建备忘录列表
+  const memoList = document.createElement('div');
+  memoList.className = 'ai-memo-list';
+  memoContainer.appendChild(memoList);
+  
+  // 刷新备忘录列表
+  function refreshMemoList() {
+    getMemos(function(memos) {
+      memoList.innerHTML = '';
+      if (memos.length === 0) {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.className = 'ai-memo-empty';
+        emptyMessage.textContent = '暂无备忘录';
+        memoList.appendChild(emptyMessage);
+        return;
+      }
+      
+      memos.sort((a, b) => b.id - a.id).forEach(memo => {
+        const memoItem = document.createElement('div');
+        memoItem.className = 'ai-memo-item';
+        
+        const memoText = document.createElement('div');
+        memoText.className = 'ai-memo-text';
+        memoText.textContent = memo.text;
+        
+        const memoTime = document.createElement('div');
+        memoTime.className = 'ai-memo-time';
+        memoTime.textContent = new Date(memo.timestamp).toLocaleString();
+        
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'ai-memo-delete-button';
+        deleteButton.textContent = '删除';
+        deleteButton.addEventListener('click', function() {
+          deleteMemo(memo.id);
+          refreshMemoList();
+        });
+        
+        memoItem.appendChild(memoText);
+        memoItem.appendChild(memoTime);
+        memoItem.appendChild(deleteButton);
+        memoList.appendChild(memoItem);
+      });
+    });
+  }
+  
+  refreshMemoList();
+  content.appendChild(memoContainer);
+}
+
+// 添加备忘录样式
+function addMemoStyles() {
+  // 检查是否已经添加过样式
+  if (document.querySelector('#ai-memo-styles')) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = 'ai-memo-styles';
+  style.textContent = `
+    .ai-memo-container {
+      padding: 15px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .ai-memo-input-container {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .ai-memo-input {
+      flex: 1;
+      min-height: 60px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+      font-size: 14px;
+    }
+    
+    .ai-memo-save-button {
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .ai-memo-save-button:hover {
+      background-color: #1557b0;
+    }
+    
+    .ai-memo-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .ai-memo-item {
+      padding: 12px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+      position: relative;
+    }
+    
+    .ai-memo-text {
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    
+    .ai-memo-time {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .ai-memo-delete-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .ai-memo-item:hover .ai-memo-delete-button {
+      opacity: 1;
+    }
+    
+    .ai-memo-delete-button:hover {
+      background-color: #c82333;
+    }
+    
+    .ai-memo-empty {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// 在文档加载时添加样式
+document.addEventListener('DOMContentLoaded', addMemoStyles); 

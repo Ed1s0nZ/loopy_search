@@ -3,10 +3,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const historyList = document.getElementById('historyList');
   const emptyState = document.getElementById('emptyState');
   const pagination = document.getElementById('pagination');
-  const settingsBtn = document.getElementById('settingsBtn');
-  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  const settingsBtn = document.getElementById('settings');
+  const clearHistoryBtn = document.getElementById('clearHistory');
   const searchInput = document.getElementById('searchInput');
   const filterOptions = document.querySelectorAll('input[name="filter"]');
+  const exportHistoryBtn = document.getElementById('exportHistory');
   
   // 分页设置
   const itemsPerPage = 10;
@@ -19,6 +20,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // 事件监听
   settingsBtn.addEventListener('click', openSettings);
   clearHistoryBtn.addEventListener('click', confirmClearHistory);
+  exportHistoryBtn.addEventListener('click', function() {
+    chrome.storage.local.get('searchHistory', function(data) {
+      const history = data.searchHistory || [];
+      if (history.length === 0) {
+        alert('暂无历史记录可导出');
+        return;
+      }
+      exportHistory(history);
+    });
+  });
+  
   searchInput.addEventListener('input', filterHistory);
   filterOptions.forEach(option => {
     option.addEventListener('change', filterHistory);
@@ -308,4 +320,45 @@ document.addEventListener('DOMContentLoaded', function() {
   function padZero(num) {
     return num.toString().padStart(2, '0');
   }
+
+  // 导出历史记录功能
+  function exportHistory(history) {
+    // 生成导出内容
+    let exportContent = '# AI划词搜索 - 历史记录导出\n\n';
+    exportContent += `导出时间：${new Date().toLocaleString()}\n\n`;
+    
+    history.forEach((item, index) => {
+      exportContent += `## ${index + 1}. ${new Date(item.timestamp).toLocaleString()}\n\n`;
+      exportContent += `### 查询内容\n${item.query}\n\n`;
+      exportContent += `### AI 回复\n${item.response}\n\n`;
+      if (item.rating) {
+        exportContent += `### 评分\n${item.rating > 0 ? '👍 有用' : '👎 没用'}\n\n`;
+      }
+      exportContent += '---\n\n';
+    });
+
+    // 创建并下载文件
+    const blob = new Blob([exportContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `AI划词搜索历史记录_${new Date().toLocaleDateString()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // 修复按钮 ID
+  document.getElementById('settings').addEventListener('click', function() {
+    window.close();
+  });
+
+  document.getElementById('clearHistory').addEventListener('click', function() {
+    if (confirm('确定要清空所有历史记录吗？此操作不可恢复。')) {
+      chrome.storage.local.remove('searchHistory', function() {
+        loadHistory();
+      });
+    }
+  });
 }); 
