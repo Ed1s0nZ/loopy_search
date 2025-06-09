@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI划词搜索设置</title>
+  <style>
+    body {
+      font-family: 'Microsoft YaHei', sans-serif;
+      width: 480px;
+      padding: 20px;
+      margin: 0;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    .container {
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 15px;
+    }
+    .header img {
+      width: 32px;
+      height: 32px;
+      margin-right: 12px;
+    }
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      color: #1a73e8;
+      font-weight: 600;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      color: #555;
+      font-size: 14px;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border 0.3s, box-shadow 0.3s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    .btn-group {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0d66da;
+    }
+    .btn-outline {
+      background-color: transparent;
+      color: #1a73e8;
+      border: 1px solid #1a73e8;
+    }
+    .btn-outline:hover {
+      background-color: rgba(26, 115, 232, 0.1);
+    }
+    .status {
+      margin-top: 15px;
+      text-align: center;
+      color: #34a853;
+      font-weight: 500;
+      font-size: 14px;
+      display: none;
+      animation: fadeIn 0.5s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .toggle-password {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+    }
+    .password-container {
+      position: relative;
+    }
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      margin-left: 5px;
+      color: #999;
+      font-size: 14px;
+      cursor: help;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: #555;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-top: 5px;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: auto;
+      margin-right: 8px;
+    }
+    .checkbox-group label {
+      display: inline;
+      margin: 0;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 20px 0 10px;
+      color: #333;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 5px;
+    }
+    .nav-tabs {
+      margin-bottom: 20px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+
+    /* 隐藏滚动条但保持可滚动 */
+    .nav-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-tab {
+      padding: 10px 15px;
+      color: #666;
+      cursor: pointer;
+      position: relative;
+      border-bottom: 2px solid transparent;
+      transition: all 0.3s;
+      flex: 0 0 auto; /* 防止标签被压缩 */
+      white-space: nowrap; /* 防止文字换行 */
+    }
+    .nav-tab.active {
+      color: #1a73e8;
+      border-bottom-color: #1a73e8;
+      font-weight: 500;
+    }
+    .nav-tab:hover:not(.active) {
+      color: #1a73e8;
+      background-color: rgba(26, 115, 232, 0.05);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .history-preview {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .history-preview h3 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 16px;
+      color: #444;
+    }
+    .history-preview p {
+      margin: 5px 0;
+      color: #666;
+    }
+    .history-preview-empty {
+      text-align: center;
+      color: #999;
+      padding: 20px 0;
+    }
+    .history-preview-item {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .history-preview-item:last-child {
+      border-bottom: none;
+    }
+    .history-preview-query {
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .history-preview-date {
+      font-size: 12px;
+      color: #999;
+    }
+    .view-all {
+      text-align: center;
+      margin-top: 10px;
+    }
+    .memo-container {
+      padding: 15px;
+    }
+    .memo-input-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .memo-input {
+      flex: 1;
+      min-height: 60px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .memo-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    .memo-save-btn {
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      height: fit-content;
+      align-self: flex-start;
+    }
+    .memo-save-btn:hover {
+      background-color: #1557b0;
+    }
+    .memo-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .memo-item {
+      padding: 12px;
+      background-color: #f8f9fa;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .memo-text {
+      margin-bottom: 8px;
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .memo-time {
+      font-size: 12px;
+      color: #666;
+    }
+    .memo-delete-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 8px;
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .memo-item:hover .memo-delete-btn {
+      opacity: 1;
+    }
+    .memo-delete-btn:hover {
+      background-color: #c82333;
+    }
+    .memo-empty {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+    }
+    .memo-tips {
+      background-color: #f8f9fa;
+      border-left: 4px solid #1a73e8;
+      padding: 12px 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    .memo-tips p {
+      margin: 0;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.5;
+    }
+    .memo-tips p:first-child {
+      margin-bottom: 8px;
+    }
+    .memo-tips p:last-child {
+      color: #d93025;
+    }
+    /* 提示词管理样式 */
+    .prompt-container {
+      padding: 15px;
+      position: relative;
+      height: 100%;
+    }
+
+    .prompt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .prompt-header h2 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+      font-weight: 600;
+    }
+
+    .prompt-header .btn-primary {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
+    .prompt-list {
+      margin-bottom: 20px;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+      padding-right: 10px;
+    }
+
+    .prompt-category {
+      margin-bottom: 20px;
+    }
+
+    .prompt-category h3 {
+      font-size: 14px;
+      color: #1a73e8;
+      margin: 0 0 12px 0;
+      padding: 8px 0;
+      border-bottom: 2px solid #e8f0fe;
+    }
+
+    .prompt-item {
+      background-color: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .prompt-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-color: #1a73e8;
+    }
+
+    .prompt-item-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    .prompt-item-description {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .prompt-item-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .floating-add-btn {
+      display: none;
+    }
+
+    /* 修改模态框样式 */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 1001;
+      overflow-y: auto;
+    }
+
+    .modal-content {
+      position: relative;
+      background-color: white;
+      margin: 20px auto;
+      width: 90%;
+      max-width: 500px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      animation: modalSlideIn 0.3s ease;
+      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        transform: translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      border-radius: 12px 12px 0 0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      color: #333;
+    }
+
+    .close-modal {
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .close-modal:hover {
+      color: #333;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: white;
+      border-radius: 0 0 12px 12px;
+    }
+
+    .empty-message {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-size: 14px;
+    }
+
+    /* 自定义滚动条 */
+    .prompt-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .prompt-list::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    .prompt-list::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 4px;
+    }
+
+    .prompt-list::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
+
+    /* 调整弹窗中的输入框样式 */
+    .form-input,
+    input[type="text"],
+    select,
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="images/icon48.png" alt="AI划词搜索">
+      <h1>AI划词搜索</h1>
+    </div>
+    
+    <div class="nav-tabs">
+      <div class="nav-tab" data-tab="settings">设置</div>
+      <div class="nav-tab active" data-tab="memo">备忘录</div>
+      <div class="nav-tab" data-tab="prompts">提示词</div>
+      <div class="nav-tab" data-tab="history">历史记录</div>
+    </div>
+    
+    <div id="settings" class="tab-content">
+      <div class="section-title">API设置</div>
+      
+      <div class="form-group">
+        <label for="apiUrl">API地址 <span class="tooltip">?<span class="tooltiptext">OpenAI或兼容OpenAI协议的API地址</span></span></label>
+        <input type="text" id="apiUrl" placeholder="例如: https://api.openai.com/v1/chat/completions">
+      </div>
+      
+      <div class="form-group">
+        <label for="apiKey">API密钥 <span class="tooltip">?<span class="tooltiptext">您的API访问密钥</span></span></label>
+        <div class="password-container">
+          <input type="password" id="apiKey" placeholder="输入您的API密钥">
+          <button type="button" class="toggle-password" id="togglePassword">显示</button>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="model">AI模型</label>
+        <select id="model">
+          <option value="gpt-3.5-turbo">GPT-3.5-Turbo</option>
+          <option value="gpt-4">GPT-4</option>
+          <option value="gpt-4-turbo">GPT-4-Turbo</option>
+          <option value="claude-3-opus">Claude-3-Opus</option>
+          <option value="claude-3-sonnet">Claude-3-Sonnet</option>
+          <option value="gemini-pro">Gemini Pro</option>
+          <option value="custom">自定义</option>
+        </select>
+      </div>
+      
+      <div class="form-group" id="customModelContainer" style="display: none;">
+        <label for="customModel">自定义模型名称</label>
+        <input type="text" id="customModel" placeholder="输入模型名称">
+      </div>
+      
+      <div class="section-title">显示设置</div>
+      
+      <div class="form-group">
+        <label for="prompt">默认提示词前缀</label>
+        <input type="text" id="prompt" placeholder="例如: 请解释以下内容:">
+      </div>
+      
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="useMarkdown">
+          <label for="useMarkdown">使用Markdown渲染 <span class="tooltip">?<span class="tooltiptext">启用后将使用Markdown格式渲染AI回复，支持标题、列表、代码块等</span></span></label>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input type="checkbox" id="saveHistory" checked>
+          <label for="saveHistory">保存搜索历史 <span class="tooltip">?<span class="tooltiptext">保存您的搜索记录，以便稍后查看</span></span></label>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="historyRetention">历史记录保留时间</label>
+        <select id="historyRetention">
+          <option value="1">1天</option>
+          <option value="3">3天</option>
+          <option value="7" selected>7天</option>
+          <option value="14">14天</option>
+          <option value="30">30天</option>
+          <option value="0">永久保留</option>
+        </select>
+      </div>
+      
+      <div class="btn-group">
+        <button id="saveBtn">保存设置</button>
+      </div>
+      
+      <div id="status" class="status">✓ 设置已保存!</div>
+    </div>
+    
+    <div id="memo" class="tab-content active">
+      <div class="memo-container">
+        <div class="memo-tips">
+          <p>📝 备忘录将保存在当前浏览器中</p>
+          <p>💡 提示：为了防止数据丢失，建议定期导出重要内容到本地文件</p>
+        </div>
+        <div class="memo-input-container">
+          <textarea class="memo-input" placeholder="输入新的备忘录..."></textarea>
+          <button class="memo-save-btn">保存</button>
+        </div>
+        <div class="memo-list">
+          <!-- 备忘录列表将在这里动态生成 -->
+        </div>
+      </div>
+    </div>
+    
+    <div id="prompts" class="tab-content">
+      <div class="prompt-container">
+        <div class="prompt-header">
+          <h2>提示词管理</h2>
+          <button id="newPromptBtn" class="btn-primary">新建提示词</button>
+        </div>
+        <div id="promptList" class="prompt-list">
+          <!-- 提示词列表将通过JavaScript动态加载 -->
+        </div>
+
+        <div id="newPromptModal" class="modal">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3>新建提示词</h3>
+              <span class="close-modal">&times;</span>
+            </div>
+            
+            <div class="modal-body">
+              <div class="form-group">
+                <label>提示词标题</label>
+                <input type="text" id="promptTitle" placeholder="输入提示词标题">
+              </div>
+              
+              <div class="form-group">
+                <label>分类</label>
+                <select id="promptCategory">
+                  <option value="通用">通用</option>
+                  <option value="翻译">翻译</option>
+                  <option value="代码">代码</option>
+                  <option value="写作">写作</option>
+                  <option value="分析">分析</option>
+                  <option value="其他">其他</option>
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label>提示词内容</label>
+                <textarea id="promptContent" rows="4" placeholder="输入提示词内容..." class="form-input"></textarea>
+              </div>
+              
+              <div class="form-group">
+                <label>描述（可选）</label>
+                <input type="text" id="promptDescription" placeholder="简短描述">
+              </div>
+            </div>
+            
+            <div class="modal-footer">
+              <button id="cancelPrompt" class="btn-secondary">取消</button>
+              <button id="savePrompt" class="btn-primary">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="history" class="tab-content">
+      <div class="history-preview">
+        <h3>最近的搜索</h3>
+        <div id="historyPreviewList"></div>
+        <button id="viewAllHistoryBtn" class="btn-outline">查看全部历史</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html> 
