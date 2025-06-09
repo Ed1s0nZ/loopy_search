@@ -66,6 +66,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return matchesSearch && matchesFilter;
       });
+
+      // 按时间倒序排列
+      filteredHistory.sort((a, b) => b.timestamp - a.timestamp);
       
       // 更新UI
       if (filteredHistory.length === 0) {
