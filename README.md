@@ -1,7 +1,7 @@
 # AI划词搜索 Chrome扩展 (Loopy Search)
 
 <div align="center">
-  <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="128px">
+  <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="300px">
   
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   ![Platform](https://img.shields.io/badge/platform-Chrome-brightgreen.svg)
