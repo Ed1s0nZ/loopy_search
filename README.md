@@ -1,7 +1,25 @@
-# AI划词搜索 Chrome扩展
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="200px">  
-   
-一个呆头呆脑的AI划词搜索工具，支持OpenAI协议，可保留历史搜索记录。
+# AI划词搜索 Chrome扩展 (Loopy Search)
+
+<div align="center">
+  <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="128px">
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  ![Platform](https://img.shields.io/badge/platform-Chrome-brightgreen.svg)
+  ![Language](https://img.shields.io/badge/language-JavaScript-blue.svg)
+</div>
+
+## 📝 项目简介
+
+AI划词搜索是一个智能的 Chrome 浏览器扩展，它能让你在浏览网页时快速获取 AI 对选中文本的解释和翻译。通过支持 OpenAI 协议，它可以连接到各种 AI 服务，为你提供即时的智能解答。
+
+## ✨ 核心特性
+
+- 🔍 智能划词搜索：选中文本后自动显示 AI 搜索按钮
+- 🤖 广泛兼容性：支持 OpenAI API 及所有兼容 OpenAI 协议的服务
+- 🔧 高度可定制：支持自定义 API 配置、模型选择和提示词
+- 🌐 智能翻译：自动语言检测与多语言翻译支持
+- ⌨️ 快捷操作：支持多种快捷键和右键菜单操作
+- 📚 历史记录：完整的搜索历史管理与检索功能
 ## 功能展示
 ### 配置
 <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E9%85%8D%E7%BD%AE.png" width="300px">  
