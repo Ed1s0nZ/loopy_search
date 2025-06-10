@@ -286,13 +286,9 @@ function createAISearchResultWindow() {
     isDragging = false;
   });
   
-  // 创建内容区域的容器
-  const contentWrapper = document.createElement('div');
-  contentWrapper.className = 'ai-search-result-content-wrapper';
-  
+  // 创建内容区域
   const content = document.createElement('div');
   content.className = 'ai-search-result-content';
-  contentWrapper.appendChild(content);
   
   // 创建继续提问区域
   const continueAskArea = document.createElement('div');
@@ -419,14 +415,18 @@ function createAISearchResultWindow() {
   actions.appendChild(copyButton);
   footer.appendChild(actions);
   
-  // 组装所有元素
+  // 添加所有元素到窗口
   aiSearchResult.appendChild(header);
-  aiSearchResult.appendChild(contentWrapper);
+  aiSearchResult.appendChild(content);
   aiSearchResult.appendChild(continueAskArea);
   aiSearchResult.appendChild(footer);
   
   document.body.appendChild(aiSearchResult);
-  return aiSearchResult;
+  
+  // 显示结果窗口
+  aiSearchResult.style.display = 'block';
+  
+  return content;
 }
 
 // 简单的Markdown解析函数

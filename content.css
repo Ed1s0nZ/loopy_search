@@ -120,6 +120,14 @@
   background-color: rgba(0, 0, 0, 0.2);
 }
 
+.ai-search-result-content-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .ai-search-result-content {
   flex: 1;
   padding: 16px;
@@ -130,7 +138,7 @@
   word-wrap: break-word;
   color: #333;
   background: #fff;
-  height: calc(100% - 110px); /* 减去头部和底部的高度 */
+  height: calc(100% - 150px); /* 减去头部和两个底部区域的高度 */
   box-sizing: border-box;
 }
 
@@ -712,9 +720,13 @@
   padding: 12px 16px;
   border-top: 1px solid #eee;
   background: #f8f9fa;
-  flex-shrink: 0;
   height: 50px;
   box-sizing: border-box;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
 }
 
 [data-theme="dark"] .ai-search-result-footer {
@@ -1037,9 +1049,13 @@
   padding: 12px 16px;
   border-top: 1px solid #eee;
   background: #f8f9fa;
-  flex-shrink: 0;
   height: 50px;
   box-sizing: border-box;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
 }
 
 [data-theme="dark"] .ai-search-result-footer {
@@ -1106,4 +1122,19 @@
 [data-theme="dark"] .ai-search-result-action-button.like-btn.active {
   background: #137333;
   color: #fff;
+}
+
+.ai-continue-ask-area {
+  padding: 10px 15px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: #f8f9fa;
+  min-height: 36px;
+  user-select: text;
+  width: 100%;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: 50px; /* 在底部功能栏之上 */
 }
