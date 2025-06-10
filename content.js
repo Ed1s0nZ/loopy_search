@@ -132,15 +132,106 @@ function hideAISearchButton() {
   }
 }
 
-// 创建AI搜索结果窗口
-function createAISearchResultWindow() {
-  if (aiSearchResult) {
-    document.body.removeChild(aiSearchResult);
+// 添加继续提问区域的样式
+function addContinueAskStyles() {
+  // 检查是否已经添加过样式
+  if (document.querySelector('#ai-continue-ask-styles')) {
+    return;
   }
 
-  aiSearchResult = document.createElement('div');
-  aiSearchResult.className = 'ai-search-result';
+  const style = document.createElement('style');
+  style.id = 'ai-continue-ask-styles';
+  style.textContent = `
+    .ai-continue-ask-area {
+      padding: 10px 15px;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: #f8f9fa;
+      min-height: 36px;
+      user-select: text;
+    }
+    
+    .ai-continue-ask-input {
+      flex: 1;
+      height: 36px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: none;
+      font-size: 14px;
+      line-height: 20px;
+      background: white;
+      user-select: text;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    
+    .ai-continue-ask-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    
+    .ai-continue-ask-button {
+      width: 80px;
+      padding: 8px 0;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+      height: 36px;
+      white-space: nowrap;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    
+    .ai-continue-ask-button:hover {
+      background-color: #1557b0;
+    }
+    
+    .ai-continue-ask-button:active {
+      transform: scale(0.98);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// 创建AI搜索结果窗口
+function createAISearchResultWindow() {
+  // 确保样式已添加
+  addContinueAskStyles();
+  addMemoStyles();
+
+  if (aiSearchResult) {
+    // 保存当前位置
+    const rect = aiSearchResult.getBoundingClientRect();
+    const oldTop = rect.top + window.scrollY;
+    const oldLeft = rect.left + window.scrollX;
+    
+    document.body.removeChild(aiSearchResult);
+    aiSearchResult = null;
+    
+    // 创建新窗口时使用保存的位置
+    const newWindow = document.createElement('div');
+    newWindow.className = 'ai-search-result';
+    newWindow.style.top = oldTop + 'px';
+    newWindow.style.left = oldLeft + 'px';
+    aiSearchResult = newWindow;
+  } else {
+    aiSearchResult = document.createElement('div');
+    aiSearchResult.className = 'ai-search-result';
+    // 初始位置设置在视窗中间
+    aiSearchResult.style.top = '50%';
+    aiSearchResult.style.left = '50%';
+    aiSearchResult.style.transform = 'translate(-50%, -50%)';
+  }
   
+  // 创建基础结构
   const header = document.createElement('div');
   header.className = 'ai-search-result-header';
   
@@ -154,9 +245,92 @@ function createAISearchResultWindow() {
   closeButton.addEventListener('click', hideAISearchResultWindow);
   header.appendChild(closeButton);
   
+  // 添加拖动功能
+  let isDragging = false;
+  let startX;
+  let startY;
+  let startTop;
+  let startLeft;
+
+  header.addEventListener('mousedown', function(e) {
+    if (e.target === closeButton) return;
+    
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startTop = aiSearchResult.offsetTop;
+    startLeft = aiSearchResult.offsetLeft;
+    
+    // 如果是首次移动，移除居中定位
+    if (aiSearchResult.style.transform) {
+      const rect = aiSearchResult.getBoundingClientRect();
+      aiSearchResult.style.transform = 'none';
+      aiSearchResult.style.top = rect.top + 'px';
+      aiSearchResult.style.left = rect.left + 'px';
+    }
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    aiSearchResult.style.top = (startTop + deltaY) + 'px';
+    aiSearchResult.style.left = (startLeft + deltaX) + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    isDragging = false;
+  });
+  
+  // 创建内容区域的容器
+  const contentWrapper = document.createElement('div');
+  contentWrapper.className = 'ai-search-result-content-wrapper';
+  
   const content = document.createElement('div');
   content.className = 'ai-search-result-content';
+  contentWrapper.appendChild(content);
   
+  // 创建继续提问区域
+  const continueAskArea = document.createElement('div');
+  continueAskArea.className = 'ai-continue-ask-area';
+  
+  const continueAskInput = document.createElement('textarea');
+  continueAskInput.className = 'ai-continue-ask-input';
+  continueAskInput.placeholder = '继续提问...';
+  
+  // 添加回车发送功能
+  continueAskInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const newQuestion = this.value.trim();
+      if (newQuestion) {
+        const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${newQuestion}`;
+        this.value = '';
+        searchWithAI(contextPrompt);
+      }
+    }
+  });
+  
+  const continueAskButton = document.createElement('button');
+  continueAskButton.className = 'ai-continue-ask-button';
+  continueAskButton.textContent = '发送';
+  continueAskButton.addEventListener('click', function() {
+    const newQuestion = continueAskInput.value.trim();
+    if (newQuestion) {
+      const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${newQuestion}`;
+      continueAskInput.value = '';
+      searchWithAI(contextPrompt);
+    }
+  });
+  
+  continueAskArea.appendChild(continueAskInput);
+  continueAskArea.appendChild(continueAskButton);
+  
+  // 创建底部功能栏
   const footer = document.createElement('div');
   footer.className = 'ai-search-result-footer';
   
@@ -243,74 +417,13 @@ function createAISearchResultWindow() {
   });
   
   actions.appendChild(copyButton);
-  
-  // 添加翻译按钮
-  const translateButton = document.createElement('button');
-  translateButton.className = 'ai-search-result-action-button translate-btn';
-  translateButton.textContent = '翻译';
-  translateButton.addEventListener('click', function() {
-    if (selectedText) {
-      translateButton.textContent = '翻译中...';
-      translateButton.disabled = true;
-      
-      // 构建翻译请求
-      const translatePrompt = `请将以下文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-      
-      // 获取API设置
-      chrome.storage.sync.get({
-        apiUrl: 'https://api.openai.com/v1/chat/completions',
-        apiKey: '',
-        actualModel: 'gpt-3.5-turbo'
-      }, function(items) {
-        // 发送翻译请求
-        fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
-          .then(response => {
-            showAISearchResultWindow(response.content);
-            translateButton.textContent = '翻译';
-            translateButton.disabled = false;
-          })
-          .catch(error => {
-            showErrorState('翻译失败', error.message);
-            translateButton.textContent = '翻译';
-            translateButton.disabled = false;
-          });
-      });
-    }
-  });
-  
-  actions.appendChild(translateButton);
-  
   footer.appendChild(actions);
   
+  // 组装所有元素
   aiSearchResult.appendChild(header);
-  aiSearchResult.appendChild(content);
+  aiSearchResult.appendChild(contentWrapper);
+  aiSearchResult.appendChild(continueAskArea);
   aiSearchResult.appendChild(footer);
-  
-  // 添加拖动功能
-  let isDragging = false;
-  let offsetX, offsetY;
-  
-  header.addEventListener('mousedown', function(e) {
-    isDragging = true;
-    offsetX = e.clientX - aiSearchResult.getBoundingClientRect().left;
-    offsetY = e.clientY - aiSearchResult.getBoundingClientRect().top;
-    aiSearchResult.style.transition = 'none';
-  });
-  
-  document.addEventListener('mousemove', function(e) {
-    if (isDragging && aiSearchResult) {
-      aiSearchResult.style.transform = 'none';
-      aiSearchResult.style.top = (e.clientY - offsetY) + 'px';
-      aiSearchResult.style.left = (e.clientX - offsetX) + 'px';
-    }
-  });
-  
-  document.addEventListener('mouseup', function() {
-    isDragging = false;
-    if (aiSearchResult) {
-      aiSearchResult.style.transition = '';
-    }
-  });
   
   document.body.appendChild(aiSearchResult);
   return aiSearchResult;
@@ -446,6 +559,10 @@ function showLoadingState(message = '正在思考中...') {
   
   const content = aiSearchResult.querySelector('.ai-search-result-content');
   if (!content) return;
+  
+  // 保存当前内容区域的高度，以防止加载动画导致窗口抖动
+  const currentHeight = content.offsetHeight;
+  content.style.minHeight = `${currentHeight}px`;
   
   content.innerHTML = `
     <div class="ai-search-result-loading">
@@ -1040,6 +1157,63 @@ document.addEventListener('DOMContentLoaded', function() {
   } catch (error) {
     console.error("无法发送加载完成消息:", error);
   }
+  
+  addMemoStyles();
+  addContinueAskStyles();
+  
+  // 添加继续提问区域的样式
+  const style = document.createElement('style');
+  style.textContent = `
+    .ai-continue-ask-area {
+      padding: 10px 15px;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: #f8f9fa;
+    }
+    
+    .ai-continue-ask-input {
+      flex: 1;
+      min-height: 36px;
+      max-height: 120px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: vertical;
+      font-size: 14px;
+      line-height: 1.5;
+      background: white;
+    }
+    
+    .ai-continue-ask-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    
+    .ai-continue-ask-button {
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+      height: 36px;
+      white-space: nowrap;
+    }
+    
+    .ai-continue-ask-button:hover {
+      background-color: #1557b0;
+    }
+    
+    .ai-continue-ask-button:active {
+      transform: scale(0.98);
+    }
+  `;
+  document.head.appendChild(style);
 });
 
 // 打开设置页面
@@ -1273,7 +1447,4 @@ function addMemoStyles() {
     }
   `;
   document.head.appendChild(style);
-}
-
-// 在文档加载时添加样式
-document.addEventListener('DOMContentLoaded', addMemoStyles); 
+} 
