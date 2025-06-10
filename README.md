@@ -22,16 +22,19 @@ AI划词搜索是一个智能的 Chrome 浏览器扩展，它能让你在浏览�
 - 📚 历史记录：完整的搜索历史管理与检索功能
 ## 功能展示
 ### 配置
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E9%85%8D%E7%BD%AE.png" width="300px">  
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E8%AE%BE%E7%BD%AE%E7%95%8C%E9%9D%A2.png" width="300px">  
+
+### 提示词界面
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E6%8F%90%E7%A4%BA%E8%AF%8D%E7%95%8C%E9%9D%A2.png" width="300px">  
 
 ### 使用
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E4%BD%BF%E7%94%A8.png" width="800px">  
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E4%BD%BF%E7%94%A8%E7%95%8C%E9%9D%A2.png" width="800px">  
 
-### 结果
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E7%BB%93%E6%9E%9C.png" width="400px">  
+### 搜索结果
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E6%90%9C%E7%B4%A2%E7%95%8C%E9%9D%A2.png" width="400px">  
 
 ### 历史记录
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E5%8E%86%E5%8F%B2%E8%AE%B0%E5%BD%95.png" width="800px">  
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E5%8E%86%E5%8F%B2%E8%AE%B0%E5%BD%95%E7%95%8C%E9%9D%A2.png" width="800px">  
 
 
 ## 功能特点
