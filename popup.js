@@ -1,3 +1,85 @@
+// 全局函数定义
+function showToast(message, type = 'success') {
+  // 清除所有现有的 toast
+  const existingContainer = document.querySelector('.toast-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
+
+  // 创建新的 toast 容器
+  const toastContainer = document.createElement('div');
+  toastContainer.className = 'toast-container';
+  document.body.appendChild(toastContainer);
+
+  // 创建新的 toast 元素
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  
+  // 添加到容器
+  toastContainer.appendChild(toast);
+  
+  // 触发显示动画
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+  
+  // 3秒后移除
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      toastContainer.remove();
+    }, 300);
+  }, 3000);
+}
+
+// 添加必要的样式
+const style = document.createElement('style');
+style.textContent = `
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+  }
+  
+  .toast {
+    background-color: #4CAF50;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    font-size: 14px;
+    line-height: 1.4;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  .toast-success {
+    background-color: #4CAF50;
+  }
+  
+  .toast-error {
+    background-color: #f44336;
+  }
+`;
+
+// 检查并移除可能存在的重复样式
+const existingStyle = document.querySelector('style[data-toast-style]');
+if (existingStyle) {
+  existingStyle.remove();
+}
+style.setAttribute('data-toast-style', 'true');
+document.head.appendChild(style);
+
 document.addEventListener('DOMContentLoaded', function() {
   // 全局函数定义
   function loadCategories() {
@@ -122,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const promptInput = document.getElementById('prompt');
             if (promptInput) {
               promptInput.value = template.content;
-              showToast('提示词已应用', 'success');
+              showToast('提示词已应用成功');
             }
           });
         }
@@ -1283,30 +1365,6 @@ document.addEventListener('DOMContentLoaded', function() {
         categoryManagerModal.style.display = 'block';
         loadCategoryList();
       });
-    }
-
-    // 显示提示消息函数
-    function showToast(message, type = 'normal') {
-      // 移除可能存在的旧提示
-      const existingToast = document.querySelector('.toast-message');
-      if (existingToast) {
-        existingToast.remove();
-      }
-
-      // 创建新提示
-      const toast = document.createElement('div');
-      toast.className = `toast-message ${type}`;
-      toast.textContent = message;
-      document.body.appendChild(toast);
-
-      // 显示提示
-      setTimeout(() => toast.classList.add('show'), 10);
-
-      // 3秒后隐藏并移除提示
-      setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-      }, 3000);
     }
 
     // 绑定添加分类按钮事件

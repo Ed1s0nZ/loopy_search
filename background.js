@@ -143,8 +143,8 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
             category: "通用"
           }
         }, function(response) {
-          if (chrome.runtime.lastError) {
-            console.debug("发送消息错误:", chrome.runtime.lastError);
+          if (chrome.runtime.lastError && chrome.runtime.lastError.message.includes('Could not establish connection')) {
+            console.debug("内容脚本未加载，准备注入:", chrome.runtime.lastError);
             
             // 如果内容脚本未响应，注入所需脚本
             chrome.scripting.executeScript({
@@ -194,8 +194,8 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
             text: info.selectionText,
             template: template
           }, function(response) {
-            if (chrome.runtime.lastError) {
-              console.debug("发送消息错误:", chrome.runtime.lastError);
+            if (chrome.runtime.lastError && chrome.runtime.lastError.message.includes('Could not establish connection')) {
+              console.debug("内容脚本未加载，准备注入:", chrome.runtime.lastError);
               
               // 如果内容脚本未响应，注入所需脚本
               chrome.scripting.executeScript({
