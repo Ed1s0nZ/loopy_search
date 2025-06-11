@@ -258,16 +258,21 @@ function createAISearchResultWindow() {
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
-    startTop = aiSearchResult.offsetTop;
-    startLeft = aiSearchResult.offsetLeft;
+    const rect = aiSearchResult.getBoundingClientRect();
     
-    // 如果是首次移动，移除居中定位
+    // 如果有transform，先移除并设置实际位置
     if (aiSearchResult.style.transform) {
-      const rect = aiSearchResult.getBoundingClientRect();
       aiSearchResult.style.transform = 'none';
       aiSearchResult.style.top = rect.top + 'px';
       aiSearchResult.style.left = rect.left + 'px';
     }
+    
+    startTop = rect.top;
+    startLeft = rect.left;
+    
+    // 防止拖动时选中文本
+    e.preventDefault();
+    document.body.style.userSelect = 'none';
   });
 
   document.addEventListener('mousemove', function(e) {
@@ -278,12 +283,22 @@ function createAISearchResultWindow() {
     const deltaX = e.clientX - startX;
     const deltaY = e.clientY - startY;
     
-    aiSearchResult.style.top = (startTop + deltaY) + 'px';
-    aiSearchResult.style.left = (startLeft + deltaX) + 'px';
+    // 计算新位置
+    const newTop = startTop + deltaY;
+    const newLeft = startLeft + deltaX;
+    
+    // 确保窗口不会被拖出视窗
+    const maxTop = window.innerHeight - aiSearchResult.offsetHeight;
+    const maxLeft = window.innerWidth - aiSearchResult.offsetWidth;
+    
+    aiSearchResult.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+    aiSearchResult.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
   });
 
   document.addEventListener('mouseup', function() {
     isDragging = false;
+    // 恢复文本选择功能
+    document.body.style.userSelect = '';
   });
   
   // 创建内容区域
