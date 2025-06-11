@@ -822,9 +822,44 @@ function showErrorState(title, message) {
       <div class="ai-search-result-error-icon">❌</div>
       <div class="ai-search-result-error-title">${title}</div>
       <div class="ai-search-result-error-message">${message}</div>
-      <button class="ai-search-result-retry-button" onclick="window.location.reload()">重试</button>
+      <button class="ai-search-result-retry-button">重试</button>
     </div>
   `;
+
+  // 添加重试按钮的点击事件处理
+  const retryButton = content.querySelector('.ai-search-result-retry-button');
+  retryButton.addEventListener('click', function() {
+    // 如果存在已选中的文本，重新执行翻译
+    if (selectedText) {
+      const detectedLang = detectLanguage(selectedText);
+      if (detectedLang !== 'zh') {
+        const translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
+        chrome.storage.sync.get({
+          apiUrl: 'https://api.openai.com/v1/chat/completions',
+          apiKey: '',
+          actualModel: 'gpt-3.5-turbo'
+        }, function(items) {
+          // 显示加载状态
+          showLoadingState();
+          // 发送翻译请求
+          fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
+            .then(response => {
+              if (response.success && response.content) {
+                showAISearchResultWindow(response.content);
+              } else {
+                throw new Error(response.error || '翻译失败');
+              }
+            })
+            .catch(error => {
+              showErrorState('翻译失败', error.message);
+            });
+        });
+      } else {
+        // 如果是中文，直接使用AI搜索
+        searchWithAI(selectedText);
+      }
+    }
+  });
   
   // 显示结果窗口
   aiSearchResult.style.display = 'block';
