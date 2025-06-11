@@ -147,21 +147,25 @@ function addContinueAskStyles() {
       border-top: 1px solid #eee;
       display: flex;
       gap: 10px;
-      align-items: flex-start;
+      align-items: center;
       background: #f8f9fa;
     }
     
     .ai-continue-ask-input {
       flex: 1;
-      min-height: 36px;
-      max-height: 120px;
+      height: 36px;
       padding: 8px 12px;
       border: 1px solid #ddd;
       border-radius: 4px;
-      resize: vertical;
+      resize: none;
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 20px;
       background: white;
+      overflow: hidden;
+      box-sizing: border-box;
+      -webkit-resize: none;  /* Safari 和 Chrome */
+      -moz-resize: none;    /* Firefox */
+      appearance: none;     /* 移除默认外观 */
     }
     
     .ai-continue-ask-input:focus {
@@ -171,7 +175,8 @@ function addContinueAskStyles() {
     }
     
     .ai-continue-ask-button {
-      padding: 8px 16px;
+      width: 80px;
+      padding: 8px 0;
       background-color: #1a73e8;
       color: white;
       border: none;
@@ -181,6 +186,8 @@ function addContinueAskStyles() {
       transition: background-color 0.2s;
       height: 36px;
       white-space: nowrap;
+      text-align: center;
+      box-sizing: border-box;
     }
     
     .ai-continue-ask-button:hover {
@@ -1245,21 +1252,25 @@ document.addEventListener('DOMContentLoaded', function() {
       border-top: 1px solid #eee;
       display: flex;
       gap: 10px;
-      align-items: flex-start;
+      align-items: center;
       background: #f8f9fa;
     }
     
     .ai-continue-ask-input {
       flex: 1;
-      min-height: 36px;
-      max-height: 120px;
+      height: 36px;
       padding: 8px 12px;
       border: 1px solid #ddd;
       border-radius: 4px;
-      resize: vertical;
+      resize: none;
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 20px;
       background: white;
+      overflow: hidden;
+      box-sizing: border-box;
+      -webkit-resize: none;  /* Safari 和 Chrome */
+      -moz-resize: none;    /* Firefox */
+      appearance: none;     /* 移除默认外观 */
     }
     
     .ai-continue-ask-input:focus {
@@ -1269,7 +1280,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     .ai-continue-ask-button {
-      padding: 8px 16px;
+      width: 80px;
+      padding: 8px 0;
       background-color: #1a73e8;
       color: white;
       border: none;
@@ -1279,6 +1291,8 @@ document.addEventListener('DOMContentLoaded', function() {
       transition: background-color 0.2s;
       height: 36px;
       white-space: nowrap;
+      text-align: center;
+      box-sizing: border-box;
     }
     
     .ai-continue-ask-button:hover {
