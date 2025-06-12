@@ -206,6 +206,7 @@ function createAISearchResultWindow() {
   // 确保样式已添加
   addContinueAskStyles();
   addMemoStyles();
+  addResizeStyles();
 
   if (aiSearchResult) {
     // 保存当前位置
@@ -231,6 +232,48 @@ function createAISearchResultWindow() {
     aiSearchResult.style.transform = 'translate(-50%, -50%)';
   }
   
+  // 添加调整大小的把手
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'ai-search-result-resize-handle';
+  
+  // 实现调整大小的功能
+  let isResizing = false;
+  let startX, startY, startWidth, startHeight;
+  
+  resizeHandle.addEventListener('mousedown', function(e) {
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = aiSearchResult.offsetWidth;
+    startHeight = aiSearchResult.offsetHeight;
+    
+    // 防止拖动时选中文本
+    e.preventDefault();
+    document.body.style.userSelect = 'none';
+  });
+  
+  document.addEventListener('mousemove', function(e) {
+    if (!isResizing) return;
+    
+    const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+    
+    // 计算新的宽度和高度，设置最小值
+    const newWidth = Math.max(300, startWidth + deltaX);
+    const newHeight = Math.max(200, startHeight + deltaY);
+    
+    // 更新窗口大小
+    aiSearchResult.style.width = newWidth + 'px';
+    aiSearchResult.style.height = newHeight + 'px';
+  });
+  
+  document.addEventListener('mouseup', function() {
+    if (isResizing) {
+      isResizing = false;
+      document.body.style.userSelect = '';
+    }
+  });
+  
   // 创建基础结构
   const header = document.createElement('div');
   header.className = 'ai-search-result-header';
@@ -247,8 +290,6 @@ function createAISearchResultWindow() {
   
   // 添加拖动功能
   let isDragging = false;
-  let startX;
-  let startY;
   let startTop;
   let startLeft;
 
@@ -435,6 +476,7 @@ function createAISearchResultWindow() {
   aiSearchResult.appendChild(content);
   aiSearchResult.appendChild(continueAskArea);
   aiSearchResult.appendChild(footer);
+  aiSearchResult.appendChild(resizeHandle);
   
   document.body.appendChild(aiSearchResult);
   
@@ -532,52 +574,28 @@ async function updateResultContent(result) {
   }
 }
 
-// 显示AI搜索结果
-function showAISearchResultWindow(result) {
-  try {
-    if (!result) {
-      throw new Error('响应内容为空');
-    }
-    
-    rawResult = result; // 保存原始结果
-    const resultWindow = createAISearchResultWindow();
-    
-    if (!resultWindow) {
-      throw new Error('结果窗口创建失败');
-    }
-    
-    updateResultContent(result);
-  } catch (error) {
-    console.error('显示结果时出错:', error);
-    showErrorState('显示错误', error.message);
-  }
-}
-
-// 隐藏AI搜索结果窗口
-function hideAISearchResultWindow() {
-  if (aiSearchResult) {
-    // 清除错误状态标记
-    delete aiSearchResult.dataset.errorState;
-    
-    if (aiSearchResult.parentNode) {
-      aiSearchResult.parentNode.removeChild(aiSearchResult);
-    }
-    aiSearchResult = null;
-  }
-}
-
 // 显示加载状态
 function showLoadingState(message = '正在思考中...') {
-  if (!aiSearchResult) {
-    createAISearchResultWindow();
+  let width, height;
+  
+  // 如果窗口已存在，保存当前尺寸
+  if (aiSearchResult) {
+    width = aiSearchResult.style.width;
+    height = aiSearchResult.style.height;
+    document.body.removeChild(aiSearchResult);
+  }
+  
+  // 创建新窗口
+  createAISearchResultWindow();
+  
+  // 恢复之前的尺寸
+  if (width && height) {
+    aiSearchResult.style.width = width;
+    aiSearchResult.style.height = height;
   }
   
   const content = aiSearchResult.querySelector('.ai-search-result-content');
   if (!content) return;
-  
-  // 保存当前内容区域的高度，以防止加载动画导致窗口抖动
-  const currentHeight = content.offsetHeight;
-  content.style.minHeight = `${currentHeight}px`;
   
   content.innerHTML = `
     <div class="ai-search-result-loading">
@@ -815,69 +833,89 @@ async function fetchAIResponse(apiUrl, apiKey, model, prompt) {
 function showErrorState(title, message) {
   console.error(`错误: ${title} - ${message}`);
   
-  // 确保aiSearchResult存在
-  if (typeof aiSearchResult === 'undefined' || !aiSearchResult) {
-    createAISearchResultWindow();
-  }
-  
-  // 获取结果窗口
-  if (!document.querySelector('.ai-search-result')) {
-    console.error('无法创建结果窗口');
-    return;
-  }
-  
-  const content = aiSearchResult.querySelector('.ai-search-result-content');
-  if (!content) return;
-  
-  // 标记错误状态
-  aiSearchResult.dataset.errorState = 'true';
-  
-  content.innerHTML = `
-    <div class="ai-search-result-error">
-      <div class="ai-search-result-error-icon">❌</div>
-      <div class="ai-search-result-error-title">${title}</div>
-      <div class="ai-search-result-error-message">${message}</div>
-      <button class="ai-search-result-retry-button">重试</button>
-    </div>
-  `;
-
-  // 添加重试按钮的点击事件处理
-  const retryButton = content.querySelector('.ai-search-result-retry-button');
-  retryButton.addEventListener('click', function() {
-    // 如果存在已选中的文本，重新执行翻译
-    if (selectedText) {
-      const detectedLang = detectLanguage(selectedText);
-      if (detectedLang !== 'zh') {
-        const translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-        chrome.storage.sync.get({
-          apiUrl: 'https://api.openai.com/v1/chat/completions',
-          apiKey: '',
-          actualModel: 'gpt-3.5-turbo'
-        }, function(items) {
-          // 显示加载状态
-          showLoadingState();
-          // 发送翻译请求
-          fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
-            .then(response => {
-              if (response.success && response.content) {
-                showAISearchResultWindow(response.content);
-              } else {
-                throw new Error(response.error || '翻译失败');
-              }
-            })
-            .catch(error => {
-              showErrorState('翻译失败', error.message);
-            });
-        });
-      } else {
-        // 如果是中文，直接使用AI搜索
-        searchWithAI(selectedText);
-      }
+  try {
+    // 确保aiSearchResult存在
+    if (!aiSearchResult || !document.body.contains(aiSearchResult)) {
+      createAISearchResultWindow();
     }
-  });
-  
-  // 显示结果窗口
-  aiSearchResult.style.display = 'block';
+    
+    // 获取内容区域
+    const content = aiSearchResult.querySelector('.ai-search-result-content');
+    if (!content) {
+      console.error('找不到内容容器');
+      return;
+    }
+    
+    // 标记错误状态
+    aiSearchResult.dataset.errorState = 'true';
+    
+    // 隐藏加载状态
+    hideLoadingState();
+    
+    content.innerHTML = `
+      <div class="ai-search-result-error">
+        <div class="ai-search-result-error-icon">❌</div>
+        <div class="ai-search-result-error-title">${title}</div>
+        <div class="ai-search-result-error-message">${message}</div>
+        <button class="ai-search-result-retry-button">重试</button>
+      </div>
+    `;
+
+    // 添加重试按钮的点击事件处理
+    const retryButton = content.querySelector('.ai-search-result-retry-button');
+    retryButton.addEventListener('click', function() {
+      // 清除错误状态
+      delete aiSearchResult.dataset.errorState;
+      
+      // 如果存在已选中的文本，重新执行翻译
+      if (selectedText) {
+        const detectedLang = detectLanguage(selectedText);
+        if (detectedLang !== 'zh') {
+          const translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
+          chrome.storage.sync.get({
+            apiUrl: 'https://api.openai.com/v1/chat/completions',
+            apiKey: '',
+            actualModel: 'gpt-3.5-turbo'
+          }, function(items) {
+            // 显示加载状态
+            showLoadingState();
+            // 发送翻译请求
+            fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
+              .then(response => {
+                if (response.success && response.content) {
+                  showAISearchResultWindow(response.content);
+                } else {
+                  throw new Error(response.error || '翻译失败');
+                }
+              })
+              .catch(error => {
+                showErrorState('翻译失败', error.message);
+              });
+          });
+        } else {
+          // 如果是中文，直接使用AI搜索
+          searchWithAI(selectedText);
+        }
+      }
+    });
+    
+    // 确保窗口可见
+    aiSearchResult.style.display = 'block';
+    
+  } catch (error) {
+    console.error('显示错误状态时出错:', error);
+    // 如果显示错误状态时出错，尝试重新创建窗口
+    try {
+      if (aiSearchResult && aiSearchResult.parentNode) {
+        aiSearchResult.parentNode.removeChild(aiSearchResult);
+      }
+      aiSearchResult = null;
+      createAISearchResultWindow();
+      showErrorState(title, message);
+    } catch (e) {
+      console.error('无法恢复错误显示:', e);
+    }
+  }
 }
 
 // 评价结果
@@ -1184,13 +1222,25 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 
 // 添加错误恢复机制
 window.addEventListener('error', function(event) {
-  // 记录错误到控制台，但不显示在界面上
+  // 记录错误到控制台
   console.debug("捕获到错误:", event.error);
   
-  // 如果错误发生在AI搜索过程中，显示友好的错误提示
-  if (event.error && event.error.message && event.error.message.includes("AI")) {
-    hideLoadingState();
-    showErrorState('AI搜索出错', '抱歉，AI搜索过程中出现了错误。请稍后重试。');
+  try {
+    // 如果错误发生在AI搜索过程中，显示友好的错误提示
+    if (event.error && event.error.message) {
+      // 隐藏加载状态
+      hideLoadingState();
+      
+      // 显示错误状态
+      showErrorState('操作失败', '抱歉，处理过程中出现了错误。请稍后重试。');
+      
+      // 重置全局状态
+      selectedText = '';
+      rawResult = '';
+      currentSearchId = null;
+    }
+  } catch (e) {
+    console.error('错误处理失败:', e);
   }
   
   // 阻止错误继续传播
@@ -1552,4 +1602,240 @@ function addMemoStyles() {
     }
   `;
   document.head.appendChild(style);
+}
+
+// 添加调整大小的样式
+function addResizeStyles() {
+  // 检查是否已经添加过样式
+  if (document.querySelector('#ai-resize-styles')) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = 'ai-resize-styles';
+  style.textContent = `
+    .ai-search-result {
+      position: fixed;
+      z-index: 999999;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      min-width: 400px;
+      max-width: 90vw;
+      min-height: 200px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      resize: both;
+    }
+
+    .ai-search-result-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      min-height: 100px;
+      margin-bottom: 106px; /* 为底部的继续提问区域和工具栏留出空间 */
+    }
+
+    .ai-continue-ask-area {
+      position: absolute;
+      bottom: 50px; /* 在底部工具栏上方 */
+      left: 0;
+      right: 0;
+      padding: 10px 15px;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: #f8f9fa;
+      height: 56px;
+      box-sizing: border-box;
+      z-index: 1000;
+    }
+
+    .ai-continue-ask-input {
+      flex: 1;
+      height: 36px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      resize: none;
+      font-size: 14px;
+      line-height: 20px;
+      background: white;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .ai-continue-ask-button {
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      height: 36px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .ai-continue-ask-button:hover {
+      background-color: #1557b0;
+    }
+
+    .ai-search-result-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-top: 1px solid #eee;
+      background: #f8f9fa;
+      height: 50px;
+      box-sizing: border-box;
+      z-index: 1000;
+    }
+
+    .ai-search-result-footer > div:first-child {
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-size: 14px;
+      color: #666;
+      margin-right: 12px;
+    }
+
+    .ai-search-result-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      max-width: calc(100% - 100px); /* 减去左侧文字的空间 */
+    }
+
+    .ai-search-result-format-toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      margin-right: 12px;
+    }
+
+    .ai-search-result-format-toggle label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      cursor: pointer;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .ai-search-result-rating-group {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .ai-search-result-action-button {
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: white;
+      color: #333;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+      min-width: fit-content;
+    }
+
+    .ai-search-result-resize-handle {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 20px;
+      height: 20px;
+      cursor: se-resize;
+      z-index: 1001;
+    }
+
+    .ai-search-result-resize-handle::before {
+      content: '';
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      width: 12px;
+      height: 12px;
+      border-right: 2px solid #666;
+      border-bottom: 2px solid #666;
+      opacity: 0.6;
+    }
+
+    .ai-search-result-resize-handle:hover::before {
+      opacity: 1;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// 隐藏AI搜索结果窗口
+function hideAISearchResultWindow() {
+  if (aiSearchResult) {
+    // 清除错误状态标记
+    delete aiSearchResult.dataset.errorState;
+    
+    if (aiSearchResult.parentNode) {
+      aiSearchResult.parentNode.removeChild(aiSearchResult);
+    }
+    aiSearchResult = null;
+    
+    // 重置其他全局状态
+    rawResult = '';
+    currentSearchId = null;
+  }
+}
+
+// 显示AI搜索结果
+function showAISearchResultWindow(result) {
+  try {
+    if (!result) {
+      throw new Error('响应内容为空');
+    }
+    
+    let width, height;
+    
+    // 如果窗口已存在，保存当前尺寸
+    if (aiSearchResult) {
+      width = aiSearchResult.style.width;
+      height = aiSearchResult.style.height;
+    }
+    
+    rawResult = result; // 保存原始结果
+    const resultWindow = createAISearchResultWindow();
+    
+    // 恢复之前的尺寸
+    if (width && height) {
+      aiSearchResult.style.width = width;
+      aiSearchResult.style.height = height;
+    }
+    
+    if (!resultWindow) {
+      throw new Error('结果窗口创建失败');
+    }
+    
+    updateResultContent(result);
+  } catch (error) {
+    console.error('显示结果时出错:', error);
+    showErrorState('显示错误', error.message);
+  }
 } 
