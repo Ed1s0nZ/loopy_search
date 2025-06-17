@@ -6,6 +6,7 @@ let rawResult = ''; // 存储原始结果文本
 let isMarkdownMode = true; // 默认使用Markdown模式
 let currentSearchId = null; // 当前搜索的ID
 let showFloatingButton = false; // 默认不显示浮动按钮
+let conversationHistory = []; // 存储对话历史
 
 // 生成唯一ID
 function generateId() {
@@ -208,29 +209,39 @@ function createAISearchResultWindow() {
   addMemoStyles();
   addResizeStyles();
 
+  // 如果已存在旧窗口，先保存其位置并安全移除
+  let oldTop, oldLeft;
   if (aiSearchResult) {
-    // 保存当前位置
-    const rect = aiSearchResult.getBoundingClientRect();
-    const oldTop = rect.top + window.scrollY;
-    const oldLeft = rect.left + window.scrollX;
-    
-    document.body.removeChild(aiSearchResult);
+    try {
+      const rect = aiSearchResult.getBoundingClientRect();
+      oldTop = rect.top + window.scrollY;
+      oldLeft = rect.left + window.scrollX;
+      
+      // 检查节点是否真的在文档中
+      if (document.body.contains(aiSearchResult)) {
+        document.body.removeChild(aiSearchResult);
+      }
+    } catch (e) {
+      console.error('移除旧窗口时出错:', e);
+    }
     aiSearchResult = null;
-    
-    // 创建新窗口时使用保存的位置
-    const newWindow = document.createElement('div');
-    newWindow.className = 'ai-search-result';
+  }
+
+  // 创建新窗口
+  const newWindow = document.createElement('div');
+  newWindow.className = 'ai-search-result';
+  
+  // 使用保存的位置或默认位置
+  if (oldTop !== undefined && oldLeft !== undefined) {
     newWindow.style.top = oldTop + 'px';
     newWindow.style.left = oldLeft + 'px';
-    aiSearchResult = newWindow;
   } else {
-    aiSearchResult = document.createElement('div');
-    aiSearchResult.className = 'ai-search-result';
-    // 初始位置设置在视窗中间
-    aiSearchResult.style.top = '50%';
-    aiSearchResult.style.left = '50%';
-    aiSearchResult.style.transform = 'translate(-50%, -50%)';
+    newWindow.style.top = '50%';
+    newWindow.style.left = '50%';
+    newWindow.style.transform = 'translate(-50%, -50%)';
   }
+  
+  aiSearchResult = newWindow;
   
   // 添加调整大小的把手
   const resizeHandle = document.createElement('div');
@@ -362,6 +373,8 @@ function createAISearchResultWindow() {
       if (newQuestion) {
         const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${newQuestion}`;
         this.value = '';
+        // 显示加载状态
+        showLoadingState('正在思考中...');
         searchWithAI(contextPrompt);
       }
     }
@@ -375,6 +388,8 @@ function createAISearchResultWindow() {
     if (newQuestion) {
       const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${newQuestion}`;
       continueAskInput.value = '';
+      // 显示加载状态
+      showLoadingState('正在思考中...');
       searchWithAI(contextPrompt);
     }
   });
@@ -529,11 +544,6 @@ function simpleMarkdown(text) {
 
 // 更新结果内容
 async function updateResultContent(result) {
-  // 如果当前是错误状态，不更新内容
-  if (aiSearchResult && aiSearchResult.dataset.errorState === 'true') {
-    return;
-  }
-
   if (!result) {
     console.debug('结果为空，显示错误提示');
     showErrorState('内容为空', '抱歉，未能获取到有效的响应内容');
@@ -576,24 +586,6 @@ async function updateResultContent(result) {
 
 // 显示加载状态
 function showLoadingState(message = '正在思考中...') {
-  let width, height;
-  
-  // 如果窗口已存在，保存当前尺寸
-  if (aiSearchResult) {
-    width = aiSearchResult.style.width;
-    height = aiSearchResult.style.height;
-    document.body.removeChild(aiSearchResult);
-  }
-  
-  // 创建新窗口
-  createAISearchResultWindow();
-  
-  // 恢复之前的尺寸
-  if (width && height) {
-    aiSearchResult.style.width = width;
-    aiSearchResult.style.height = height;
-  }
-  
   const content = aiSearchResult.querySelector('.ai-search-result-content');
   if (!content) return;
   
@@ -604,18 +596,8 @@ function showLoadingState(message = '正在思考中...') {
     </div>
   `;
   
-  // 显示结果窗口
+  // 确保窗口可见
   aiSearchResult.style.display = 'block';
-}
-
-// 隐藏加载状态
-function hideLoadingState() {
-  if (!aiSearchResult) return;
-  
-  const loadingElement = aiSearchResult.querySelector('.ai-search-result-loading');
-  if (loadingElement) {
-    loadingElement.remove();
-  }
 }
 
 // 检查网络状态并显示详细信息
@@ -758,12 +740,12 @@ function runNetworkDiagnostics(container) {
 }
 
 // 发送API请求获取AI响应
-async function fetchAIResponse(apiUrl, apiKey, model, prompt) {
+async function fetchAIResponse(apiUrl, apiKey, model, messages) {
   try {
     console.log('开始API请求:', { 
       url: apiUrl, 
       model: model,
-      promptLength: prompt.length 
+      messagesCount: Array.isArray(messages) ? messages.length : 1
     });
     
     // 通过 background.js 发送请求
@@ -774,10 +756,10 @@ async function fetchAIResponse(apiUrl, apiKey, model, prompt) {
         apiKey: apiKey,
         data: {
           model: model,
-          messages: [
+          messages: Array.isArray(messages) ? messages : [
             {
               role: 'user',
-              content: prompt
+              content: messages
             }
           ],
           temperature: 0.7
@@ -941,6 +923,13 @@ function rateResult(rating) {
 
 // 用AI搜索所选文本
 function searchWithAI(text, template = null) {
+  // 立即显示窗口和加载状态
+  if (!aiSearchResult) {
+    createAISearchResultWindow();
+    conversationHistory = []; // 新对话时重置历史
+  }
+  showLoadingState('正在思考中...');
+
   chrome.storage.sync.get({
     apiUrl: 'https://api.openai.com/v1/chat/completions',
     apiKey: '',
@@ -956,31 +945,60 @@ function searchWithAI(text, template = null) {
       return;
     }
 
-    // 显示加载状态
-    showLoadingState();
-    
     try {
       // 构建提示词
       let finalPrompt;
-      if (template) {
-        finalPrompt = template.content + '\n' + text;
-        console.log('使用模板提示词:', { 
-          templateTitle: template.title,
-          templateCategory: template.category
+      let messages = [];
+
+      if (text.startsWith('基于之前的对话内容')) {
+        // 继续提问时，使用完整的对话历史
+        const newQuestion = text.replace('基于之前的对话内容：\n', '').split('\n\n新的问题：')[1];
+        
+        // 添加系统角色消息
+        messages.push({
+          role: 'system',
+          content: '你是一个有帮助的AI助手，请基于之前的对话回答用户的问题。'
         });
+
+        // 添加历史对话
+        for (const history of conversationHistory) {
+          messages.push({
+            role: 'user',
+            content: history.question
+          });
+          messages.push({
+            role: 'assistant',
+            content: history.answer
+          });
+        }
+
+        // 添加新问题
+        messages.push({
+          role: 'user',
+          content: newQuestion
+        });
+
+        finalPrompt = newQuestion; // 用于保存历史
       } else {
-        finalPrompt = items.prompt + '\n' + text;
-        console.log('使用默认提示词');
+        // 新对话
+        const promptText = template ? template.content + '\n' + text : items.prompt + '\n' + text;
+        messages = [
+          {
+            role: 'user',
+            content: promptText
+          }
+        ];
+        finalPrompt = text;
       }
-      
-      console.log('准备发送API请求');
+
+      console.log('准备发送API请求，消息数量:', messages.length);
       
       // 获取响应
       const response = await fetchAIResponse(
         items.apiUrl,
         items.apiKey,
         items.actualModel,
-        finalPrompt
+        messages
       );
       
       if (!response.success) {
@@ -990,18 +1008,24 @@ function searchWithAI(text, template = null) {
       console.log('收到API响应:', { success: response.success });
       
       if (response.content) {
+        // 保存到对话历史
+        conversationHistory.push({
+          question: finalPrompt,
+          answer: response.content
+        });
+
         // 保存原始结果
         rawResult = response.content;
         
         // 更新结果显示
         console.log('更新结果显示');
-        showAISearchResultWindow(response.content);
+        updateResultContent(response.content);
         
         // 如果启用了历史记录保存
         if (items.saveHistory) {
           console.log('保存到历史记录');
           const historyData = {
-            query: text,
+            query: finalPrompt,
             response: response.content,
             template: template ? {
               title: template.title,
@@ -1027,7 +1051,6 @@ function searchWithAI(text, template = null) {
       }
     } catch (error) {
       console.error('AI搜索错误:', error);
-      hideLoadingState();
       showErrorState('请求失败', error.message);
     }
   });
