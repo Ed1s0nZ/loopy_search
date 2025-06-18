@@ -666,37 +666,48 @@
       position: relative;
       display: flex;
       gap: 10px;
+      align-items: stretch;
     }
 
     .chat-input {
       flex: 1;
-      padding: 12px;
+      padding: 14px 16px;
       border: 1px solid #ddd;
       border-radius: 8px;
-      font-size: 14px;
-      resize: none;
-      min-height: 24px;
+      font-size: 15px;
+      min-height: 44px;
       max-height: 120px;
-      line-height: 1.5;
+      height: 44px;
+      line-height: 1.6;
+      box-sizing: border-box;
+      background: #fff;
+      display: block;
+      resize: none;
+      overflow-y: auto;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     .chat-input:focus {
-      outline: none;
       border-color: #1a73e8;
-      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.15);
     }
 
     .send-button {
-      padding: 8px 16px;
+      padding: 0 28px;
       background-color: #1a73e8;
       color: white;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 14px;
-      height: fit-content;
-      align-self: flex-end;
+      font-size: 16px;
+      height: 44px;
+      align-self: center;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
     }
 
     .send-button:hover {
@@ -932,7 +943,7 @@
           <div class="chat-input-wrapper">
             <textarea
               class="chat-input"
-              placeholder="输入消息，按Enter发送（Shift+Enter换行）"
+              placeholder="输入消息，按Enter发送"
               rows="1"
             ></textarea>
             <button class="send-button">发送</button>

@@ -1639,14 +1639,15 @@ document.addEventListener('DOMContentLoaded', function() {
     sendButton.disabled = !hasContent;
   });
   
-  // 监听输入框键盘事件
+  // 监听输入框键盘事件：Enter发送，Shift+Enter换行
   chatInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (!sendButton.disabled) {
-        sendMessage();
+        sendButton.click();
       }
     }
+    // Shift+Enter 默认允许换行
   });
   
   // 监听发送按钮点击
