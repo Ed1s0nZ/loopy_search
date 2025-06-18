@@ -473,15 +473,21 @@ document.addEventListener('DOMContentLoaded', function() {
         memos.sort((a, b) => b.id - a.id).forEach(memo => {
           const memoItem = document.createElement('div');
           memoItem.className = 'memo-item';
-          
-          // 将文本内容中的换行符转换为<br>标签
-          const formattedText = memo.text.replace(/\n/g, '<br>');
-          
-          memoItem.innerHTML = `
-            <div class="memo-text">${formattedText}</div>
-            <div class="memo-time">${new Date(memo.timestamp).toLocaleString()}</div>
-            <button class="memo-delete-btn" data-id="${memo.id}">删除</button>
-          `;
+          // 修改渲染方式，保留换行
+          const memoText = document.createElement('div');
+          memoText.className = 'memo-text';
+          memoText.textContent = memo.text;
+          memoText.style.whiteSpace = 'pre-line';
+          const memoTime = document.createElement('div');
+          memoTime.className = 'memo-time';
+          memoTime.textContent = new Date(memo.timestamp).toLocaleString();
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'memo-delete-btn';
+          deleteBtn.textContent = '删除';
+          deleteBtn.dataset.id = memo.id;
+          memoItem.appendChild(memoText);
+          memoItem.appendChild(memoTime);
+          memoItem.appendChild(deleteBtn);
           memoList.appendChild(memoItem);
         });
 
@@ -1591,4 +1597,196 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeHistory();
   initPromptManagement();
   initializeTabs(); // 添加标签页初始化
+
+  // 获取DOM元素
+  const chatInput = document.querySelector('.chat-input');
+  const sendButton = document.querySelector('.send-button');
+  const chatMessages = document.querySelector('.chat-messages');
+  const newChatButton = document.querySelector('.new-chat-btn');
+  const contextLength = document.querySelector('.context-length');
+  
+  // 聊天历史持久化key
+  const CHAT_SESSION_KEY = 'chatSession';
+
+  // 聊天历史恢复
+  function restoreChatSession() {
+    chrome.storage.local.get(CHAT_SESSION_KEY, function(data) {
+      const session = data[CHAT_SESSION_KEY] || [];
+      conversationHistory = session;
+      chatMessages.innerHTML = '';
+      session.forEach(msg => {
+        addMessageToChat(msg.role, msg.content, msg.role === 'assistant' ? getMarkdownSetting() : false);
+      });
+      updateContextLength();
+    });
+  }
+
+  // 获取当前Markdown设置
+  function getMarkdownSetting() {
+    // 直接从checkbox获取，防止切换时不同步
+    const checkbox = document.getElementById('useMarkdown');
+    return checkbox ? checkbox.checked : true;
+  }
+
+  // 保存当前会话
+  function saveChatSession() {
+    chrome.storage.local.set({ [CHAT_SESSION_KEY]: conversationHistory });
+  }
+
+  // 监听输入框内容变化
+  chatInput.addEventListener('input', function() {
+    const hasContent = this.value.trim().length > 0;
+    sendButton.disabled = !hasContent;
+  });
+  
+  // 监听输入框键盘事件
+  chatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!sendButton.disabled) {
+        sendMessage();
+      }
+    }
+  });
+  
+  // 监听发送按钮点击
+  sendButton.addEventListener('click', sendMessage);
+  
+  // 生成唯一ID
+  function generateId() {
+    return 'history_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }
+
+  // 发送消息函数
+  async function sendMessage() {
+    const message = chatInput.value.trim();
+    if (!message) return;
+    addMessageToChat('user', message);
+    conversationHistory.push({ role: 'user', content: message });
+    chatInput.value = '';
+    sendButton.disabled = true;
+    updateContextLength();
+    saveChatSession();
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'typing-indicator';
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'typing-dot';
+      typingDiv.appendChild(dot);
+    }
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    chrome.storage.sync.get({
+      apiUrl: 'https://api.openai.com/v1/chat/completions',
+      apiKey: '',
+      model: 'gpt-3.5-turbo',
+      customModel: '',
+      useMarkdown: true,
+      saveHistory: true
+    }, async function(items) {
+      const actualModel = items.model === 'custom' ? items.customModel : items.model;
+      const messages = conversationHistory.map(m => ({ role: m.role, content: m.content }));
+      try {
+        chrome.runtime.sendMessage({
+          action: 'fetchAIResponse',
+          apiUrl: items.apiUrl,
+          apiKey: items.apiKey,
+          data: {
+            model: actualModel,
+            messages: messages,
+            temperature: 0.7
+          }
+        }, function(response) {
+          typingDiv.remove();
+          if (chrome.runtime.lastError) {
+            addMessageToChat('assistant', '❌ 网络或扩展错误：' + chrome.runtime.lastError.message);
+            conversationHistory.push({ role: 'assistant', content: '❌ 网络或扩展错误：' + chrome.runtime.lastError.message });
+            saveChatSession();
+            updateContextLength();
+            return;
+          }
+          if (!response || !response.success) {
+            addMessageToChat('assistant', '❌ AI请求失败：' + (response && response.error ? response.error : '未知错误'));
+            conversationHistory.push({ role: 'assistant', content: '❌ AI请求失败：' + (response && response.error ? response.error : '未知错误') });
+            saveChatSession();
+            updateContextLength();
+            return;
+          }
+          const aiContent = response.data.choices && response.data.choices[0].message && response.data.choices[0].message.content ? response.data.choices[0].message.content : '';
+          if (!aiContent) {
+            addMessageToChat('assistant', '❌ AI未返回内容');
+            conversationHistory.push({ role: 'assistant', content: '❌ AI未返回内容' });
+            saveChatSession();
+            updateContextLength();
+            return;
+          }
+          addMessageToChat('assistant', aiContent, items.useMarkdown);
+          if (items.saveHistory) {
+            const historyData = {
+              id: generateId(),
+              query: message,
+              response: aiContent,
+              timestamp: Date.now(),
+              type: 'chat',
+              rating: 0
+            };
+            chrome.storage.local.get('searchHistory', function(data) {
+              const history = data.searchHistory || [];
+              history.push(historyData);
+              chrome.storage.local.set({ searchHistory: history });
+            });
+          }
+          conversationHistory.push({ role: 'assistant', content: aiContent });
+          saveChatSession();
+          updateContextLength();
+        });
+      } catch (err) {
+        typingDiv.remove();
+        addMessageToChat('assistant', '❌ 请求异常：' + err.message);
+        conversationHistory.push({ role: 'assistant', content: '❌ 请求异常：' + err.message });
+        saveChatSession();
+        updateContextLength();
+      }
+    });
+  }
+  
+  // 添加消息到聊天界面，支持Markdown
+  function addMessageToChat(role, content, useMarkdown) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}`;
+    const messageContent = document.createElement('div');
+    messageContent.className = 'message-content';
+    if (role === 'assistant' && useMarkdown) {
+      if (window.marked) {
+        messageContent.innerHTML = window.marked.parse(content);
+      } else {
+        messageContent.textContent = content;
+      }
+    } else {
+      messageContent.textContent = content;
+    }
+    const messageTime = document.createElement('div');
+    messageTime.className = 'message-time';
+    messageTime.textContent = new Date().toLocaleTimeString();
+    messageDiv.appendChild(messageContent);
+    messageDiv.appendChild(messageTime);
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+  
+  // 更新对话长度显示
+  function updateContextLength() {
+    contextLength.textContent = `当前对话长度：${conversationHistory.length}`;
+  }
+  
+  // 新建对话
+  newChatButton.addEventListener('click', function() {
+    conversationHistory = [];
+    chatMessages.innerHTML = '';
+    updateContextLength();
+    chrome.storage.local.remove(CHAT_SESSION_KEY);
+  });
+
+  // 页面加载时自动恢复
+  restoreChatSession();
 }); 

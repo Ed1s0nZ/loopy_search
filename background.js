@@ -473,13 +473,14 @@ function saveSearchHistory(data) {
       const history = storage.searchHistory || [];
       console.debug('当前历史记录数量:', history.length);
       
-      // 添加新记录
+      // 添加新记录，保留type字段
       const newRecord = {
         id: id,
         query: data.query,
         response: data.response,
         timestamp: timestamp,
-        rating: 0 // 0=无评分, 1=点赞, -1=踩
+        rating: 0,
+        type: data.type === 'search' ? 'select' : (data.type || 'other')
       };
       
       history.push(newRecord);

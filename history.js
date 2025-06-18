@@ -36,6 +36,40 @@ document.addEventListener('DOMContentLoaded', function() {
     option.addEventListener('change', filterHistory);
   });
   
+  // 在筛选区插入来源筛选下拉框和label
+  const sourceSelect = document.createElement('select');
+  sourceSelect.id = 'sourceFilter';
+  sourceSelect.style.marginLeft = '16px';
+  sourceSelect.innerHTML = `
+    <option value="all">全部来源</option>
+    <option value="chat">对话</option>
+    <option value="select">划词/右键</option>
+    <option value="other">其他</option>
+  `;
+  const sourceLabel = document.createElement('label');
+  sourceLabel.textContent = '来源：';
+  sourceLabel.setAttribute('for', 'sourceFilter');
+  sourceLabel.style.marginLeft = '16px';
+  sourceLabel.style.fontSize = '14px';
+  sourceLabel.style.color = '#555';
+  sourceLabel.style.verticalAlign = 'middle';
+  sourceLabel.style.fontWeight = 'normal';
+  
+  // 创建来源分组div，使label和下拉框紧挨
+  const sourceGroup = document.createElement('div');
+  sourceGroup.style.display = 'flex';
+  sourceGroup.style.alignItems = 'center';
+  sourceGroup.style.gap = '4px';
+  sourceGroup.appendChild(sourceLabel);
+  sourceGroup.appendChild(sourceSelect);
+  
+  if (searchInput && searchInput.parentNode) {
+    searchInput.parentNode.insertBefore(sourceGroup, searchInput);
+  }
+
+  // 监听来源筛选变化
+  sourceSelect.addEventListener('change', filterHistory);
+  
   // 加载历史记录
   function loadHistory() {
     chrome.storage.local.get('searchHistory', function(data) {
@@ -60,6 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const history = data.searchHistory || [];
       const searchTerm = searchInput.value.toLowerCase();
       const filterValue = document.querySelector('input[name="filter"]:checked').value;
+      const sourceValue = sourceSelect.value;
       
       // 应用过滤条件
       filteredHistory = history.filter(item => {
@@ -76,7 +111,14 @@ document.addEventListener('DOMContentLoaded', function() {
           matchesFilter = item.rating === -1;
         }
         
-        return matchesSearch && matchesFilter;
+        // 来源过滤
+        let matchesSource = true;
+        if (sourceValue !== 'all') {
+          const t = (item.type === 'search' ? 'select' : (item.type || 'other')).toLowerCase().trim();
+          matchesSource = t === sourceValue;
+        }
+        
+        return matchesSearch && matchesFilter && matchesSource;
       });
 
       // 按时间倒序排列
@@ -118,6 +160,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const date = new Date(item.timestamp);
     const formattedDate = `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
     
+    // 来源标签
+    const sourceTag = document.createElement('span');
+    let type = item.type === 'search' ? 'select' : (item.type || 'other');
+    sourceTag.className = 'history-source ' + type;
+    sourceTag.textContent = type === 'chat' ? '对话' : (type === 'select' ? '划词/右键' : '其他');
+    
     // 评分图标
     let ratingIcon = '';
     if (item.rating === 1) {
@@ -131,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     historyItem.innerHTML = `
       <div class="history-item-header">
+        <span class="history-source-placeholder"></span>
         <div class="history-item-title">${titleText}</div>
         <div class="history-item-meta">
           <div class="history-item-rating">${ratingIcon}</div>
@@ -148,6 +197,10 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="history-action-btn delete-btn" data-id="${item.id}">删除</button>
       </div>
     `;
+    
+    // 用sourceTag替换占位符
+    const placeholder = historyItem.querySelector('.history-source-placeholder');
+    if (placeholder) placeholder.replaceWith(sourceTag);
     
     // 添加事件监听
     setTimeout(() => {
@@ -369,4 +422,45 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
   });
+
+  // 在文件末尾或合适位置加样式
+  const style = document.createElement('style');
+  style.textContent = `
+  .history-source {
+    display: inline-block;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-right: 8px;
+    color: #fff;
+  }
+  .history-source.chat { background: #1a73e8; }
+  .history-source.select { background: #34a853; }
+  .history-source.other { background: #fbbc05; }
+  #sourceFilter {
+    height: 32px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0 12px;
+    font-size: 14px;
+    background: #fff;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .filter-bar, .history-filter, .search-bar {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  label[for="sourceFilter"] {
+    margin: 0;
+    font-size: 14px;
+    color: #555;
+    vertical-align: middle;
+    font-weight: normal;
+    white-space: nowrap;
+    line-height: 32px;
+  }
+  `;
+  document.head.appendChild(style);
 }); 

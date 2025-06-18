@@ -1024,15 +1024,28 @@ function searchWithAI(text, template = null) {
         // 如果启用了历史记录保存
         if (items.saveHistory) {
           console.log('保存到历史记录');
+          // 判断类型
+          let type = 'select';
+          if (window.location.pathname.includes('popup.html')) {
+            type = 'chat';
+          } else {
+            type = 'select'; // 无论是否有template，全部归为select
+          }
+          if (text.startsWith('基于之前的对话内容')) {
+            if (window.location.pathname.includes('popup.html')) {
+              type = 'chat';
+            } else {
+              type = 'select';
+            }
+          }
           const historyData = {
+            id: generateId(),
             query: finalPrompt,
             response: response.content,
-            template: template ? {
-              title: template.title,
-              category: template.category
-            } : null
+            timestamp: Date.now(),
+            type: type,
+            rating: 0
           };
-          
           // 保存到历史记录
           chrome.runtime.sendMessage({
             action: 'saveSearchHistory',
@@ -1861,4 +1874,9 @@ function showAISearchResultWindow(result) {
     console.error('显示结果时出错:', error);
     showErrorState('显示错误', error.message);
   }
+}
+
+// 判断template是否有效（有title/content/category且为对象）
+function isTemplateValid(template) {
+  return !!(template && typeof template === 'object' && (template.title || template.content || template.category));
 } 

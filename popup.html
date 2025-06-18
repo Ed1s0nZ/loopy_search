@@ -304,7 +304,6 @@
       font-size: 14px;
       line-height: 1.5;
       word-break: break-word;
-      white-space: pre-line;
     }
     .memo-time {
       font-size: 12px;
@@ -551,7 +550,206 @@
     /* 调整弹窗中的输入框样式 */
     .form-input,
     input[type="text"],
-    select,
+    select {
+      width: 100%;
+      padding: 10px;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    
+    /* 聊天界面样式 */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 450px;
+      background-color: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-header h2 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .new-chat-btn {
+      padding: 6px 12px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .new-chat-btn:hover {
+      background-color: #1557b0;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+
+    .message {
+      margin-bottom: 15px;
+      max-width: 85%;
+      animation: messageSlideIn 0.3s ease;
+    }
+
+    @keyframes messageSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.user {
+      margin-left: auto;
+    }
+
+    .message.assistant {
+      margin-right: auto;
+    }
+
+    .message-content {
+      padding: 10px 15px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .user .message-content {
+      background-color: #1a73e8;
+      color: white;
+    }
+
+    .assistant .message-content {
+      background-color: #f1f3f4;
+      color: #333;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .chat-input-container {
+      padding: 15px;
+      border-top: 1px solid #eee;
+      background-color: #fff;
+    }
+
+    .chat-input-wrapper {
+      position: relative;
+      display: flex;
+      gap: 10px;
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      resize: none;
+      min-height: 24px;
+      max-height: 120px;
+      line-height: 1.5;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+
+    .send-button {
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      height: fit-content;
+      align-self: flex-end;
+      transition: all 0.2s;
+    }
+
+    .send-button:hover {
+      background-color: #1557b0;
+    }
+
+    .send-button[disabled] {
+      background-color: #e8eaed;
+      color: #999;
+      cursor: default;
+    }
+
+    .send-button[disabled]:hover {
+      background-color: #e8eaed;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 10px 15px;
+      background-color: #f1f3f4;
+      border-radius: 12px;
+      width: fit-content;
+      margin-bottom: 15px;
+    }
+
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      background-color: #666;
+      border-radius: 50%;
+      animation: typingAnimation 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes typingAnimation {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .context-length {
+      font-size: 12px;
+      color: #666;
+      text-align: right;
+      margin-top: 5px;
+    }
   </style>
 </head>
 <body>
@@ -562,13 +760,14 @@
     </div>
     
     <div class="nav-tabs">
-      <div class="nav-tab" data-tab="settings">设置</div>
-      <div class="nav-tab active" data-tab="memo">备忘录</div>
+      <div class="nav-tab active" data-tab="settings">设置</div>
+      <div class="nav-tab" data-tab="memo">备忘录</div>
       <div class="nav-tab" data-tab="prompts">提示词</div>
+      <div class="nav-tab" data-tab="chat">对话</div>
       <div class="nav-tab" data-tab="history">历史记录</div>
     </div>
     
-    <div id="settings" class="tab-content">
+    <div id="settings" class="tab-content active">
       <div class="section-title">API设置</div>
       
       <div class="form-group">
@@ -709,6 +908,36 @@
               <button id="savePrompt" class="btn-primary">保存</button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="chat" class="tab-content">
+      <div class="chat-container">
+        <div class="chat-header">
+          <h2>AI 对话</h2>
+          <button class="new-chat-btn">
+            <span>新对话</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>
+        </div>
+        
+        <div class="chat-messages">
+          <!-- 消息将通过JavaScript动态添加 -->
+        </div>
+        
+        <div class="chat-input-container">
+          <div class="chat-input-wrapper">
+            <textarea
+              class="chat-input"
+              placeholder="输入消息，按Enter发送（Shift+Enter换行）"
+              rows="1"
+            ></textarea>
+            <button class="send-button">发送</button>
+          </div>
+          <div class="context-length">当前对话长度：0</div>
         </div>
       </div>
     </div>
