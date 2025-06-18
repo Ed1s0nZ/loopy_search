@@ -290,7 +290,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // 打开设置
   function openSettings() {
-    chrome.runtime.openOptionsPage();
+    chrome.runtime.sendMessage({ action: 'openSettings' }, function(response) {
+      if (chrome.runtime.lastError || !response.success) {
+        console.error('打开设置页面失败:', chrome.runtime.lastError || response.error);
+      }
+    });
   }
   
   // 显示空状态
@@ -351,7 +355,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 修复按钮 ID
   document.getElementById('settings').addEventListener('click', function() {
-    window.close();
+    chrome.runtime.sendMessage({ action: 'openSettings' }, function(response) {
+      if (chrome.runtime.lastError || !response.success) {
+        console.error('打开设置页面失败:', chrome.runtime.lastError || response.error);
+      }
+    });
   });
 
   document.getElementById('clearHistory').addEventListener('click', function() {

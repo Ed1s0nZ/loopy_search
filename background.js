@@ -88,8 +88,9 @@ chrome.runtime.onInstalled.addListener(function() {
   
   // 设置历史记录清理定时任务
   chrome.alarms.create('historyCleanup', {
-    periodInMinutes: 24 * 60 // 每天运行一次
+    periodInMinutes: 60 // 每小时运行一次
   });
+  console.debug('已创建历史记录清理定时任务（每小时执行）');
   
   // 设置网络状态检查定时任务
   chrome.alarms.create('networkCheck', {
@@ -105,6 +106,10 @@ chrome.runtime.onInstalled.addListener(function() {
   chrome.tabs.create({
     url: 'popup.html'
   });
+  
+  // 另外在扩展启动时也执行一次清理
+  console.debug('扩展启动，执行首次清理');
+  cleanupHistory();
 });
 
 // 监听存储变化，更新菜单
@@ -257,7 +262,9 @@ chrome.commands.onCommand.addListener(function(command) {
 
 // 处理定时任务
 chrome.alarms.onAlarm.addListener(function(alarm) {
+  console.debug('收到定时任务:', alarm.name);
   if (alarm.name === 'historyCleanup') {
+    console.debug('执行历史记录清理任务');
     cleanupHistory();
   } else if (alarm.name === 'networkCheck') {
     checkNetworkStatus();
@@ -285,7 +292,9 @@ function cleanupHistory() {
     
     const now = Date.now();
     const cutoffTime = now - (historyRetentionDays * 24 * 60 * 60 * 1000);
+    console.debug('当前时间:', new Date(now).toLocaleString());
     console.debug('清理截止时间:', new Date(cutoffTime).toLocaleString());
+    console.debug('保留天数设置:', historyRetentionDays);
     
     // 过滤掉过期的记录
     const updatedHistory = history.filter(item => {
@@ -393,7 +402,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       const id = saveSearchHistory(request.data);
       sendResponse({ id: id });
     } else if (request.action === 'updateHistoryRetention') {
+      console.debug('收到更新历史记录保留天数请求:', request.days);
       historyRetentionDays = request.days;
+      // 立即执行一次清理
+      cleanupHistory();
       sendResponse({ success: true });
     } else if (request.action === 'openSettings') {
       // 尝试打开设置页面

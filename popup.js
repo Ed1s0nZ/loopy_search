@@ -335,14 +335,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }, function() {
       // 显示保存成功的提示
       statusDiv.style.display = 'block';
+      
+      // 如果修改了历史记录保留时间，立即执行一次清理
+      chrome.runtime.sendMessage({
+        action: 'updateHistoryRetention',
+        days: parseInt(historyRetentionSelect.value)
+      }, function() {
+        console.debug('已更新历史记录保留天数，并触发清理');
+      });
+      
       setTimeout(function() {
         statusDiv.style.display = 'none';
         // 关闭设置窗口
         window.close();
       }, 1000);
-      
-      // 如果修改了历史记录保留时间，更新清理任务
-      updateHistoryCleanupAlarm(parseInt(historyRetentionSelect.value));
     });
   });
 
