@@ -473,8 +473,12 @@ document.addEventListener('DOMContentLoaded', function() {
         memos.sort((a, b) => b.id - a.id).forEach(memo => {
           const memoItem = document.createElement('div');
           memoItem.className = 'memo-item';
+          
+          // 将文本内容中的换行符转换为<br>标签
+          const formattedText = memo.text.replace(/\n/g, '<br>');
+          
           memoItem.innerHTML = `
-            <div class="memo-text">${memo.text}</div>
+            <div class="memo-text">${formattedText}</div>
             <div class="memo-time">${new Date(memo.timestamp).toLocaleString()}</div>
             <button class="memo-delete-btn" data-id="${memo.id}">删除</button>
           `;
