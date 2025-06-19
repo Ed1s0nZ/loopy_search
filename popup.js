@@ -1804,6 +1804,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const codecOutput = document.getElementById('codecOutput');
   const encodeBtn = document.getElementById('encodeBtn');
   const decodeBtn = document.getElementById('decodeBtn');
+  const copyCodecOutputBtn = document.getElementById('copyCodecOutputBtn');
 
   function encodeText(type, text) {
     try {
@@ -1887,6 +1888,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     decodeBtn.addEventListener('click', function() {
       codecOutput.value = decodeText(codecType.value, codecInput.value);
+    });
+  }
+
+  if (copyCodecOutputBtn) {
+    copyCodecOutputBtn.addEventListener('click', function() {
+      if (!codecOutput.value) {
+        showToast('没有可复制的内容', 'error');
+        return;
+      }
+      navigator.clipboard.writeText(codecOutput.value).then(function() {
+        showToast('复制成功', 'success');
+      }, function() {
+        showToast('复制失败', 'error');
+      });
     });
   }
 

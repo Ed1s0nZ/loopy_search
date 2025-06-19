@@ -1023,7 +1023,15 @@
       </div>
       <div class="form-group">
         <label for="codecOutput">结果</label>
-        <textarea id="codecOutput" rows="4" readonly placeholder="结果会显示在这里"></textarea>
+        <div style="position: relative;">
+          <textarea id="codecOutput" rows="4" readonly placeholder="结果会显示在这里" style="flex:1;"></textarea>
+          <button id="copyCodecOutputBtn" title="复制结果" style="background: none; border: none; cursor: pointer; position: absolute; right: 12px; top: 12px; padding: 0; display: flex; align-items: center; justify-content: center;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="8" width="10" height="12" rx="2" stroke="#1a73e8" stroke-width="2" fill="#fff"/>
+              <rect x="4" y="4" width="10" height="12" rx="2" stroke="#1a73e8" stroke-width="2" fill="#fff"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
