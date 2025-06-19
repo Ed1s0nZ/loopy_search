@@ -86,18 +86,31 @@
       padding: 12px 15px;
       background-color: #f5f5f5;
       border-bottom: 1px solid #eee;
+      gap: 12px;
+    }
+    .history-source {
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .history-item-title {
+      flex: 1;
+      min-width: 0;
       font-weight: 500;
       font-size: 16px;
       color: #444;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .history-item-meta {
       display: flex;
       align-items: center;
       gap: 15px;
-      font-size: 13px;
-      color: #666;
+      flex-shrink: 0;
+    }
+    .history-item-date {
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .history-item-rating {
       display: flex;
@@ -121,6 +134,12 @@
     .history-response {
       font-size: 14px;
       line-height: 1.6;
+      word-break: break-all;
+      overflow-wrap: break-word;
+      max-width: 100%;
+      max-height: 400px;
+      overflow-x: auto;
+      overflow-y: auto;
     }
     .history-actions {
       display: flex;

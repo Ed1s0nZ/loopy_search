@@ -501,47 +501,6 @@ function createAISearchResultWindow() {
   return content;
 }
 
-// 简单的Markdown解析函数
-function simpleMarkdown(text) {
-  // 预处理文本
-  text = text
-    .replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/g, '') // 移除零宽字符
-    .replace(/\\n/g, '\n') // 处理转义的换行符
-    .replace(/\n\s*\n/g, '\n\n') // 规范化空行
-    .trim();
-
-  // 基本的Markdown语法转换
-  return text
-    // 处理标题
-    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-    
-    // 处理强调
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    
-    // 处理代码块
-    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    
-    // 处理列表
-    .replace(/^\s*[-*]\s+(.+)/gm, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-    
-    // 处理链接
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-    
-    // 处理段落
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/^(.+)$/gm, function(match) {
-      if (!/^<[h|ul|li|pre]/.test(match)) {
-        return match.trim() ? '<p>' + match + '</p>' : '';
-      }
-      return match;
-    });
-}
-
 // 更新结果内容
 async function updateResultContent(result) {
   if (!result) {
@@ -559,14 +518,17 @@ async function updateResultContent(result) {
 
   try {
     if (isMarkdownMode) {
-      // 使用简单的Markdown解析
-      const htmlContent = simpleMarkdown(result);
-      
+      // 使用 marked 解析 markdown，支持表格等GFM语法
+      let htmlContent = '';
+      if (window.marked) {
+        htmlContent = window.marked.parse(result);
+      } else {
+        htmlContent = result;
+      }
       // 创建一个包装容器
       const markdownContainer = document.createElement('div');
       markdownContainer.className = 'markdown-body';
       markdownContainer.innerHTML = htmlContent || '内容为空';
-      
       // 清空内容区域并添加新内容
       content.innerHTML = '';
       content.appendChild(markdownContainer);
@@ -1322,6 +1284,9 @@ document.addEventListener('DOMContentLoaded', function() {
       padding: 15px;
       min-height: 20vh;
       max-height: calc(70vh - 12vh);
+      word-break: break-all;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
     }
 
     .ai-search-result-loading {

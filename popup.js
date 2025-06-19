@@ -1757,7 +1757,7 @@ document.addEventListener('DOMContentLoaded', function() {
     messageDiv.className = `message ${role}`;
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    if (role === 'assistant' && useMarkdown) {
+    if (role === 'assistant') {
       if (window.marked) {
         messageContent.innerHTML = window.marked.parse(content);
       } else {
@@ -1790,4 +1790,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 页面加载时自动恢复
   restoreChatSession();
+
+  if (window.marked) {
+    window.marked.setOptions({
+      gfm: true,
+      breaks: true
+    });
+  }
+
 }); 

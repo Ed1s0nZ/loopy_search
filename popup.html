@@ -637,6 +637,38 @@
       border-radius: 12px;
       font-size: 14px;
       line-height: 1.5;
+      word-break: break-all;
+      overflow-wrap: break-word;
+    }
+
+    /* markdown美化 */
+    .message-content pre, .message-content code {
+      background: #f5f5f5;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .message-content ul, .message-content ol {
+      margin-left: 1.5em;
+      padding-left: 1em;
+    }
+    .message-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+      background: #fff;
+    }
+    .message-content th, .message-content td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 14px;
+    }
+    .message-content th {
+      background: #f5f5f5;
+      font-weight: bold;
     }
 
     .user .message-content {
@@ -963,5 +995,6 @@
   </div>
   
   <script src="popup.js"></script>
+  <script src="marked.min.js"></script>
 </body>
 </html> 
