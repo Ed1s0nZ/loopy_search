@@ -793,6 +793,11 @@
       text-align: right;
       margin-top: 5px;
     }
+
+    .btn-group-right {
+      justify-content: flex-end;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
@@ -808,6 +813,7 @@
       <div class="nav-tab" data-tab="prompts">提示词</div>
       <div class="nav-tab" data-tab="chat">对话</div>
       <div class="nav-tab" data-tab="history">历史记录</div>
+      <div class="nav-tab" data-tab="codec">编码/解码</div>
     </div>
     
     <div id="settings" class="tab-content active">
@@ -990,6 +996,34 @@
         <h3>最近的搜索</h3>
         <div id="historyPreviewList"></div>
         <button id="viewAllHistoryBtn" class="btn-outline">查看全部历史</button>
+      </div>
+    </div>
+    <div id="codec" class="tab-content">
+      <div class="section-title">编码/解码工具</div>
+      <div class="form-group">
+        <label for="codecType">类型</label>
+        <select id="codecType">
+          <option value="unicode">Unicode</option>
+          <option value="base64">Base64</option>
+          <option value="url">URL</option>
+          <option value="uricomponent">URI Component</option>
+          <option value="htmlentity">HTML实体</option>
+          <option value="hex">Hex</option>
+          <option value="ascii">ASCII码</option>
+          <option value="timestamp">Unix时间戳</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="codecInput">输入内容</label>
+        <textarea id="codecInput" rows="4" placeholder="请输入要编码或解码的内容"></textarea>
+      </div>
+      <div class="btn-group btn-group-right">
+        <button id="encodeBtn">编码</button>
+        <button id="decodeBtn">解码</button>
+      </div>
+      <div class="form-group">
+        <label for="codecOutput">结果</label>
+        <textarea id="codecOutput" rows="4" readonly placeholder="结果会显示在这里"></textarea>
       </div>
     </div>
   </div>

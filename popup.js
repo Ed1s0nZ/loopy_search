@@ -1798,4 +1798,96 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 编码/解码工具逻辑
+  const codecType = document.getElementById('codecType');
+  const codecInput = document.getElementById('codecInput');
+  const codecOutput = document.getElementById('codecOutput');
+  const encodeBtn = document.getElementById('encodeBtn');
+  const decodeBtn = document.getElementById('decodeBtn');
+
+  function encodeText(type, text) {
+    try {
+      switch (type) {
+        case 'unicode':
+          return text.split('').map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
+        case 'base64':
+          return btoa(unescape(encodeURIComponent(text)));
+        case 'url':
+          return encodeURIComponent(text);
+        case 'uricomponent':
+          return encodeURIComponent(text);
+        case 'htmlentity':
+          return text.replace(/[\u00A0-\u9999<>&]/gim, function(i) {
+            return '&#'+i.charCodeAt(0)+';';
+          });
+        case 'hex':
+          return Array.from(text).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
+        case 'ascii':
+          return Array.from(text).map(c => c.charCodeAt(0)).join(' ');
+        case 'timestamp':
+          if (!text.trim()) return '';
+          const date = new Date(text.trim());
+          if (isNaN(date.getTime())) return '无效日期格式';
+          return Math.floor(date.getTime() / 1000).toString();
+        default:
+          return text;
+      }
+    } catch (e) {
+      return '编码失败: ' + e.message;
+    }
+  }
+
+  function decodeText(type, text) {
+    try {
+      switch (type) {
+        case 'unicode':
+          // 只解码合法的 \\uXXXX，其他原样保留
+          let decoded = text.replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) =>
+            String.fromCharCode(parseInt(grp, 16))
+          );
+          return decoded.replace(/\\u(?![0-9a-fA-F]{4})/g, '');
+        case 'base64':
+          return decodeURIComponent(escape(atob(text)));
+        case 'url':
+          return decodeURIComponent(text);
+        case 'uricomponent':
+          return decodeURIComponent(text);
+        case 'htmlentity':
+          let txt = document.createElement('textarea');
+          txt.innerHTML = text;
+          return txt.value;
+        case 'hex':
+          return text.replace(/(?:[0-9a-fA-F]{2})/g, m => String.fromCharCode(parseInt(m, 16)));
+        case 'ascii':
+          return text.split(' ').map(c => String.fromCharCode(Number(c))).join('');
+        case 'timestamp':
+          if (!text.trim()) return '';
+          let ts = text.trim();
+          if (/^\d{13}$/.test(ts)) {
+            ts = parseInt(ts, 10);
+          } else if (/^\d{10}$/.test(ts)) {
+            ts = parseInt(ts, 10) * 1000;
+          } else {
+            return '无效时间戳';
+          }
+          const d = new Date(ts);
+          if (isNaN(d.getTime())) return '无效时间戳';
+          return d.toLocaleString();
+        default:
+          return text;
+      }
+    } catch (e) {
+      return '解码失败: ' + e.message;
+    }
+  }
+
+  if (encodeBtn && decodeBtn) {
+    encodeBtn.addEventListener('click', function() {
+      codecOutput.value = encodeText(codecType.value, codecInput.value);
+    });
+    decodeBtn.addEventListener('click', function() {
+      codecOutput.value = decodeText(codecType.value, codecInput.value);
+    });
+  }
+
 }); 
