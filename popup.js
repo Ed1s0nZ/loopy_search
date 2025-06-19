@@ -1591,6 +1591,40 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // ====== 导航栏遮罩控制 ======
+  const navTabsMask = document.querySelector('.nav-tabs');
+  const rightMask = document.getElementById('rightMask');
+  const leftMask = document.getElementById('leftMask');
+
+  function updateNavMask() {
+    if (!navTabsMask || !rightMask || !leftMask) return;
+    const scrollLeft = navTabsMask.scrollLeft;
+    const maxScroll = navTabsMask.scrollWidth - navTabsMask.clientWidth;
+    // 右侧遮罩：只要右边还有内容就显示
+    if (scrollLeft < maxScroll) {
+      rightMask.style.opacity = 1;
+      rightMask.style.display = 'block';
+    } else {
+      rightMask.style.opacity = 0;
+      setTimeout(() => rightMask.style.display = 'none', 300);
+    }
+    // 左侧遮罩：只要左边还有内容就显示
+    if (scrollLeft > 0) {
+      leftMask.style.opacity = 1;
+      leftMask.style.display = 'block';
+    } else {
+      leftMask.style.opacity = 0;
+      setTimeout(() => leftMask.style.display = 'none', 300);
+    }
+  }
+
+  function tryUpdateNavMask(retry = 5) {
+    updateNavMask();
+    if (retry > 0) {
+      setTimeout(() => tryUpdateNavMask(retry - 1), 100);
+    }
+  }
+
   // 初始化所有功能
   initializeMemo();
   initializeSettings();
@@ -1905,4 +1939,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 绑定滚动和resize事件，保证滑动和窗口变化时遮罩动态变化
+  if (navTabsMask) navTabsMask.addEventListener('scroll', updateNavMask);
+  window.addEventListener('resize', updateNavMask);
+  tryUpdateNavMask();
 }); 

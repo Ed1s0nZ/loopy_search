@@ -21,7 +21,7 @@
     .header {
       display: flex;
       align-items: center;
-      margin-bottom: 20px;
+      margin-bottom: 0px;
       border-bottom: 1px solid #eee;
       padding-bottom: 15px;
     }
@@ -798,6 +798,26 @@
       justify-content: flex-end;
       gap: 10px;
     }
+
+    .nav-mask {
+      position: absolute;
+      top: 0;
+      width: 36px;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .nav-mask-right {
+      right: 0;
+      background: linear-gradient(to left, rgba(180,180,180,0.3) 60%, rgba(255,255,255,0) 100%);
+      opacity: 1;
+    }
+    .nav-mask-left {
+      left: 0;
+      background: linear-gradient(to right, rgba(180,180,180,0.3) 60%, rgba(255,255,255,0) 100%);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -807,13 +827,17 @@
       <h1>AI划词搜索</h1>
     </div>
     
-    <div class="nav-tabs">
-      <div class="nav-tab active" data-tab="settings">设置</div>
-      <div class="nav-tab" data-tab="memo">备忘录</div>
-      <div class="nav-tab" data-tab="prompts">提示词</div>
-      <div class="nav-tab" data-tab="chat">对话</div>
-      <div class="nav-tab" data-tab="history">历史记录</div>
-      <div class="nav-tab" data-tab="codec">编码/解码</div>
+    <div style="position: relative;">
+      <div class="nav-tabs">
+        <div class="nav-tab active" data-tab="settings">设置</div>
+        <div class="nav-tab" data-tab="memo">备忘录</div>
+        <div class="nav-tab" data-tab="prompts">提示词</div>
+        <div class="nav-tab" data-tab="chat">对话</div>
+        <div class="nav-tab" data-tab="history">历史记录</div>
+        <div class="nav-tab" data-tab="codec">编码/解码</div>
+      </div>
+      <div id="rightMask" class="nav-mask nav-mask-right"></div>
+      <div id="leftMask" class="nav-mask nav-mask-left" style="display:none;"></div>
     </div>
     
     <div id="settings" class="tab-content active">
