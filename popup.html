@@ -830,20 +830,30 @@
     .nav-mask {
       position: absolute;
       top: 0;
-      width: 36px;
+      width: 48px;
       height: 100%;
       z-index: 10;
       pointer-events: none;
-      transition: opacity 0.3s;
+      transition: opacity 0.3s ease;
     }
     .nav-mask-right {
       right: 0;
-      background: linear-gradient(to left, rgba(180,180,180,0.3) 60%, rgba(255,255,255,0) 100%);
+      background: linear-gradient(to left, 
+        rgba(249, 249, 249, 0.95) 0%,
+        rgba(249, 249, 249, 0.8) 30%,
+        rgba(249, 249, 249, 0.4) 60%,
+        rgba(249, 249, 249, 0) 100%
+      );
       opacity: 1;
     }
     .nav-mask-left {
       left: 0;
-      background: linear-gradient(to right, rgba(180,180,180,0.3) 60%, rgba(255,255,255,0) 100%);
+      background: linear-gradient(to right,
+        rgba(249, 249, 249, 0.95) 0%,
+        rgba(249, 249, 249, 0.8) 30%,
+        rgba(249, 249, 249, 0.4) 60%,
+        rgba(249, 249, 249, 0) 100%
+      );
       opacity: 1;
     }
   </style>

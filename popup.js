@@ -343,10 +343,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }, function() {
           console.debug('已更新历史记录保留天数，并触发清理');
         });
+        // 1秒后隐藏保存成功提示
         setTimeout(function() {
           statusDiv.style.display = 'none';
-          // 关闭设置窗口
-          window.close();
         }, 1000);
       });
     });
