@@ -794,7 +794,10 @@ function showErrorState(title, message) {
     aiSearchResult.dataset.errorState = 'true';
     
     // 隐藏加载状态
-    hideLoadingState();
+    const loadingElement = content.querySelector('.ai-search-result-loading');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
     
     content.innerHTML = `
       <div class="ai-search-result-error">
@@ -807,58 +810,54 @@ function showErrorState(title, message) {
 
     // 添加重试按钮的点击事件处理
     const retryButton = content.querySelector('.ai-search-result-retry-button');
-    retryButton.addEventListener('click', function() {
-      // 清除错误状态
-      delete aiSearchResult.dataset.errorState;
-      
-      // 如果存在已选中的文本，重新执行翻译
-      if (selectedText) {
-        const detectedLang = detectLanguage(selectedText);
-        if (detectedLang !== 'zh') {
-          const translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-          chrome.storage.local.get({
-            apiUrl: 'https://api.openai.com/v1/chat/completions',
-            apiKey: '',
-            actualModel: 'gpt-3.5-turbo'
-          }, function(items) {
-            // 显示加载状态
-            showLoadingState();
-            // 发送翻译请求
-            fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
-              .then(response => {
-                if (response.success && response.content) {
-                  showAISearchResultWindow(response.content);
-                } else {
-                  throw new Error(response.error || '翻译失败');
-                }
-              })
-              .catch(error => {
-                showErrorState('翻译失败', error.message);
-              });
-          });
-        } else {
-          // 如果是中文，直接使用AI搜索
+    if (retryButton) {
+      const retryHandler = function() {
+        // 移除事件监听器
+        retryButton.removeEventListener('click', retryHandler);
+        
+        // 清除错误状态
+        delete aiSearchResult.dataset.errorState;
+        
+        // 如果存在已选中的文本,重新执行查询
+        if (selectedText) {
           searchWithAI(selectedText);
         }
-      }
-    });
+      };
+      retryButton.addEventListener('click', retryHandler);
+    }
     
     // 确保窗口可见
-    aiSearchResult.style.display = 'block';
+    if (aiSearchResult) {
+      aiSearchResult.style.display = 'block';
+    }
     
   } catch (error) {
     console.error('显示错误状态时出错:', error);
-    // 如果显示错误状态时出错，尝试重新创建窗口
-    try {
-      if (aiSearchResult && aiSearchResult.parentNode) {
-        aiSearchResult.parentNode.removeChild(aiSearchResult);
-      }
-      aiSearchResult = null;
-      createAISearchResultWindow();
-      showErrorState(title, message);
-    } catch (e) {
-      console.error('无法恢复错误显示:', e);
+  }
+}
+
+// 清理资源函数
+function cleanupResources() {
+  try {
+    // 清理 DOM 元素
+    if (aiSearchResult && aiSearchResult.parentNode) {
+      aiSearchResult.parentNode.removeChild(aiSearchResult);
     }
+    
+    // 重置全局变量
+    aiSearchResult = null;
+    selectedText = '';
+    rawResult = '';
+    currentSearchId = null;
+    
+    // 清理事件监听器
+    const retryButton = document.querySelector('.ai-search-result-retry-button');
+    if (retryButton) {
+      retryButton.replaceWith(retryButton.cloneNode(true));
+    }
+    
+  } catch (error) {
+    console.error('清理资源时出错:', error);
   }
 }
 
@@ -961,6 +960,15 @@ function searchWithAI(text, template = null) {
         );
         
         if (!response.success) {
+          if (response.isRateLimit) {
+            // 如果是并发限制错误,显示友好提示
+            showErrorState('请求受限', '当前请求已达到最大并发数限制,请等待1秒后重试');
+            // 1秒后自动重试
+            setTimeout(() => {
+              searchWithAI(text, template);
+            }, 1000);
+            return;
+          }
           throw new Error(response.error || '未知错误');
         }
         
@@ -1359,6 +1367,55 @@ document.addEventListener('DOMContentLoaded', function() {
         min-height: 25vh;
         max-height: calc(60vh - 12vh);
       }
+    }
+
+    /* 错误状态样式 */
+    .ai-search-result-error {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      text-align: center;
+      min-height: 150px;
+    }
+    
+    .ai-search-result-error-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    
+    .ai-search-result-error-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #dc3545;
+    }
+    
+    .ai-search-result-error-message {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    
+    .ai-search-result-retry-button {
+      padding: 8px 16px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    
+    .ai-search-result-retry-button:hover {
+      background-color: #1557b0;
+    }
+    
+    .ai-search-result[data-error-state="true"] .ai-continue-ask-area {
+      display: none;
     }
   `;
   document.head.appendChild(style);

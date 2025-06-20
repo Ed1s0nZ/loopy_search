@@ -1,5 +1,6 @@
 // 全局变量
 let historyRetentionDays = 7; // 默认保留7天
+let maxHistoryItems = 1000; // 最大历史记录数量
 let lastError = null; // 存储最后一次错误信息
 let lastSelectedText = ''; // 存储最后一次选中的文本
 let networkStatus = { // 网络状态监控
@@ -349,6 +350,12 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         model: request.data.model
       });
 
+      // 设置请求超时
+      const controller = new AbortController();
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, 30000); // 30秒超时
+
       // 处理 API 请求
       fetch(request.apiUrl, {
         method: 'POST',
@@ -356,9 +363,12 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${request.apiKey}`
         },
-        body: JSON.stringify(request.data)
+        body: JSON.stringify(request.data),
+        signal: controller.signal
       })
       .then(async response => {
+        clearTimeout(timeout);
+        
         console.debug('收到 API 响应:', {
           status: response.status,
           ok: response.ok
@@ -374,6 +384,11 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             errorMessage = `请求失败 (${response.status}): ${errorText}`;
           }
           console.debug('API 错误:', errorMessage);
+          
+          // 更新网络状态
+          networkStatus.lastError = errorMessage;
+          networkStatus.lastCheck = Date.now();
+          
           sendResponse({ success: false, error: errorMessage });
         } else {
           const data = await response.json();
@@ -381,12 +396,39 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             hasChoices: !!data.choices,
             choicesLength: data.choices?.length
           });
-          sendResponse({ success: true, data: data });
+          
+          // 更新网络状态
+          networkStatus.isOnline = true;
+          networkStatus.lastCheck = Date.now();
+          networkStatus.lastError = null;
+          
+          // 只保留必要的响应数据
+          const cleanedData = {
+            choices: data.choices?.map(choice => ({
+              message: choice.message,
+              finish_reason: choice.finish_reason
+            }))
+          };
+          
+          sendResponse({ success: true, data: cleanedData });
         }
       })
       .catch(error => {
+        clearTimeout(timeout);
+        
         console.debug('API 请求失败:', error);
-        sendResponse({ success: false, error: error.message });
+        
+        // 更新网络状态
+        networkStatus.isOnline = false;
+        networkStatus.lastCheck = Date.now();
+        networkStatus.lastError = error.message;
+        
+        // 如果是超时错误
+        if (error.name === 'AbortError') {
+          sendResponse({ success: false, error: '请求超时，请稍后重试' });
+        } else {
+          sendResponse({ success: false, error: error.message });
+        }
       });
 
       return true; // 保持消息通道开放
@@ -440,6 +482,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
   } catch (error) {
     console.debug('消息处理错误:', error);
+    // 清理错误状态
+    lastError = null;
     sendResponse({ success: false, error: '内部错误，请稍后重试' });
   }
   return true; // 保持消息通道开放
@@ -464,7 +508,7 @@ function saveSearchHistory(data) {
     }
     
     chrome.storage.local.get('searchHistory', function(storage) {
-      const history = storage.searchHistory || [];
+      let history = storage.searchHistory || [];
       console.debug('当前历史记录数量:', history.length);
       
       // 添加新记录，保留type字段
@@ -477,7 +521,25 @@ function saveSearchHistory(data) {
         type: data.type === 'search' ? 'select' : (data.type || 'other')
       };
       
-      history.push(newRecord);
+      // 限制查询和响应的长度
+      if (newRecord.query.length > 5000) {
+        newRecord.query = newRecord.query.substring(0, 5000) + '...';
+      }
+      if (newRecord.response.length > 10000) {
+        newRecord.response = newRecord.response.substring(0, 10000) + '...';
+      }
+      
+      // 添加新记录到开头
+      history.unshift(newRecord);
+      
+      // 如果超过最大数量限制，删除旧记录
+      if (history.length > maxHistoryItems) {
+        history = history.slice(0, maxHistoryItems);
+      }
+      
+      // 清理超过保留天数的记录
+      const cutoffTime = Date.now() - (historyRetentionDays * 24 * 60 * 60 * 1000);
+      history = history.filter(item => item.timestamp >= cutoffTime);
       
       // 保存更新后的历史记录
       chrome.storage.local.set({ searchHistory: history }, function() {
