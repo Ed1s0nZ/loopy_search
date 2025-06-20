@@ -83,7 +83,7 @@ document.head.appendChild(style);
 document.addEventListener('DOMContentLoaded', function() {
   // 全局函数定义
   function loadCategories() {
-    chrome.storage.sync.get({ 
+    chrome.storage.local.get({ 
       customCategories: ['通用']
     }, function(data) {
       const categories = data.customCategories;
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const promptsList = document.getElementById('promptsList');
     if (!promptsList) return;
 
-    chrome.storage.sync.get({ 
+    chrome.storage.local.get({ 
       promptTemplates: [],
       customCategories: ['通用']
     }, function(data) {
@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const title = this.dataset.title;
         const template = templates.find(t => t.title === title);
         if (template) {
-          chrome.storage.sync.set({ prompt: template.content }, function() {
+          chrome.storage.local.set({ prompt: template.content }, function() {
             const promptInput = document.getElementById('prompt');
             if (promptInput) {
               promptInput.value = template.content;
@@ -217,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const title = this.dataset.title;
         if (confirm(`确定要删除提示词"${title}"吗？`)) {
           const updatedTemplates = templates.filter(t => t.title !== title);
-          chrome.storage.sync.set({ promptTemplates: updatedTemplates }, function() {
+          chrome.storage.local.set({ promptTemplates: updatedTemplates }, function() {
             loadPromptList();
             showToast('提示词已删除', 'success');
           });
@@ -245,9 +245,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const viewAllHistoryBtn = document.getElementById('viewAllHistoryBtn');
 
   // 加载保存的设置
-  chrome.storage.sync.get({
+  chrome.storage.local.get({
     apiUrl: 'https://api.openai.com/v1/chat/completions',
-    apiKey: '',
     model: 'gpt-3.5-turbo',
     customModel: '',
     prompt: '请解释以下内容:',
@@ -255,19 +254,20 @@ document.addEventListener('DOMContentLoaded', function() {
     saveHistory: true,
     historyRetention: 7
   }, function(items) {
-    apiUrlInput.value = items.apiUrl;
-    apiKeyInput.value = items.apiKey;
-    modelSelect.value = items.model;
-    customModelInput.value = items.customModel;
-    promptInput.value = items.prompt;
-    useMarkdownCheckbox.checked = items.useMarkdown;
-    saveHistoryCheckbox.checked = items.saveHistory;
-    historyRetentionSelect.value = items.historyRetention.toString();
-    
-    // 如果选择的是自定义模型，显示自定义模型输入框
-    if (items.model === 'custom') {
-      customModelContainer.style.display = 'block';
-    }
+    chrome.storage.local.get({ apiKey: '' }, function(localItems) {
+      apiUrlInput.value = items.apiUrl;
+      apiKeyInput.value = localItems.apiKey;
+      modelSelect.value = items.model;
+      customModelInput.value = items.customModel;
+      promptInput.value = items.prompt;
+      useMarkdownCheckbox.checked = items.useMarkdown;
+      saveHistoryCheckbox.checked = items.saveHistory;
+      historyRetentionSelect.value = items.historyRetention.toString();
+      // 如果选择的是自定义模型，显示自定义模型输入框
+      if (items.model === 'custom') {
+        customModelContainer.style.display = 'block';
+      }
+    });
   });
 
   // 模型选择变化时的处理
@@ -321,34 +321,34 @@ document.addEventListener('DOMContentLoaded', function() {
   saveBtn.addEventListener('click', function() {
     const model = modelSelect.value;
     const actualModel = model === 'custom' ? customModelInput.value : model;
-    
-    chrome.storage.sync.set({
-      apiUrl: apiUrlInput.value,
-      apiKey: apiKeyInput.value,
-      model: model,
-      customModel: customModelInput.value,
-      prompt: promptInput.value,
-      actualModel: actualModel,
-      useMarkdown: useMarkdownCheckbox.checked,
-      saveHistory: saveHistoryCheckbox.checked,
-      historyRetention: parseInt(historyRetentionSelect.value)
-    }, function() {
-      // 显示保存成功的提示
-      statusDiv.style.display = 'block';
-      
-      // 如果修改了历史记录保留时间，立即执行一次清理
-      chrome.runtime.sendMessage({
-        action: 'updateHistoryRetention',
-        days: parseInt(historyRetentionSelect.value)
+    // 先保存apiKey到local
+    chrome.storage.local.set({ apiKey: apiKeyInput.value }, function() {
+      // 其他设置依然用local
+      chrome.storage.local.set({
+        apiUrl: apiUrlInput.value,
+        model: model,
+        customModel: customModelInput.value,
+        prompt: promptInput.value,
+        actualModel: actualModel,
+        useMarkdown: useMarkdownCheckbox.checked,
+        saveHistory: saveHistoryCheckbox.checked,
+        historyRetention: parseInt(historyRetentionSelect.value)
       }, function() {
-        console.debug('已更新历史记录保留天数，并触发清理');
+        // 显示保存成功的提示
+        statusDiv.style.display = 'block';
+        // 如果修改了历史记录保留时间，立即执行一次清理
+        chrome.runtime.sendMessage({
+          action: 'updateHistoryRetention',
+          days: parseInt(historyRetentionSelect.value)
+        }, function() {
+          console.debug('已更新历史记录保留天数，并触发清理');
+        });
+        setTimeout(function() {
+          statusDiv.style.display = 'none';
+          // 关闭设置窗口
+          window.close();
+        }, 1000);
       });
-      
-      setTimeout(function() {
-        statusDiv.style.display = 'none';
-        // 关闭设置窗口
-        window.close();
-      }, 1000);
     });
   });
 
@@ -391,12 +391,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 更新历史记录清理任务
   function updateHistoryCleanupAlarm(days) {
-    // 如果设置为永久保留，则取消定时清理任务
-    if (days === 0) {
-      chrome.alarms.clear('historyCleanup');
-      return;
-    }
-    
     // 创建或更新定时清理任务，每天运行一次
     chrome.alarms.create('historyCleanup', {
       periodInMinutes: 24 * 60 // 每天运行一次
@@ -428,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 导出备忘录到本地文件
     function exportMemos() {
-      chrome.storage.sync.get({ memos: [] }, function(data) {
+      chrome.storage.local.get({ memos: [] }, function(data) {
         const memos = data.memos;
         if (memos.length === 0) {
           alert('暂无备忘录可导出');
@@ -462,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 加载备忘录列表
     function loadMemos() {
-      chrome.storage.sync.get({ memos: [] }, function(data) {
+      chrome.storage.local.get({ memos: [] }, function(data) {
         const memos = data.memos;
         if (memos.length === 0) {
           memoList.innerHTML = '<div class="memo-empty">暂无备忘录</div>';
@@ -506,14 +500,14 @@ document.addEventListener('DOMContentLoaded', function() {
       const text = memoInput.value.trim();
       if (!text) return;
 
-      chrome.storage.sync.get({ memos: [] }, function(data) {
+      chrome.storage.local.get({ memos: [] }, function(data) {
         const memos = data.memos;
         memos.push({
           id: Date.now(),
           text: text,
           timestamp: new Date().toISOString()
         });
-        chrome.storage.sync.set({ memos: memos }, function() {
+        chrome.storage.local.set({ memos: memos }, function() {
           memoInput.value = '';
           loadMemos();
         });
@@ -522,9 +516,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 删除备忘录
     function deleteMemo(id) {
-      chrome.storage.sync.get({ memos: [] }, function(data) {
+      chrome.storage.local.get({ memos: [] }, function(data) {
         const memos = data.memos.filter(memo => memo.id !== id);
-        chrome.storage.sync.set({ memos: memos }, function() {
+        chrome.storage.local.set({ memos: memos }, function() {
           loadMemos();
         });
       });
@@ -582,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // 初始化默认提示词
   function initializeDefaultPrompts() {
     console.log('开始初始化默认提示词...');
-    chrome.storage.sync.get({ 
+    chrome.storage.local.get({ 
       promptTemplates: [],
       customCategories: ['通用'],
       defaultPromptsInitialized: false
@@ -684,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const mergedTemplates = [...data.promptTemplates, ...newTemplates];
 
       // 保存更新后的数据
-      chrome.storage.sync.set({
+      chrome.storage.local.set({
         promptTemplates: mergedTemplates,
         customCategories: mergedCategories,
         defaultPromptsInitialized: true
@@ -1251,7 +1245,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 加载分类列表
     function loadCategoryList() {
-      chrome.storage.sync.get({ 
+      chrome.storage.local.get({ 
         promptTemplates: [],
         customCategories: ['通用']
       }, function(data) {
@@ -1331,7 +1325,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 删除分类
     function deleteCategory(category) {
-      chrome.storage.sync.get({ 
+      chrome.storage.local.get({ 
         promptTemplates: [],
         customCategories: ['通用']
       }, function(data) {
@@ -1348,7 +1342,7 @@ document.addEventListener('DOMContentLoaded', function() {
         categories = categories.filter(c => c !== category);
 
         // 保存更改
-        chrome.storage.sync.set({ 
+        chrome.storage.local.set({ 
           promptTemplates: templates,
           customCategories: categories
         }, function() {
@@ -1395,7 +1389,7 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
 
-        chrome.storage.sync.get({ customCategories: ['通用'] }, function(data) {
+        chrome.storage.local.get({ customCategories: ['通用'] }, function(data) {
           const categories = data.customCategories;
           
           if (categories.includes(newCategory)) {
@@ -1406,7 +1400,7 @@ document.addEventListener('DOMContentLoaded', function() {
           }
 
           categories.push(newCategory);
-          chrome.storage.sync.set({ customCategories: categories }, function() {
+          chrome.storage.local.set({ customCategories: categories }, function() {
             input.value = '';
             loadCategoryList();
             loadCategories();
@@ -1466,7 +1460,7 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
 
-        chrome.storage.sync.get({ promptTemplates: [] }, function(data) {
+        chrome.storage.local.get({ promptTemplates: [] }, function(data) {
           const templates = data.promptTemplates;
           
           if (templates.some(t => t.title === title)) {
@@ -1484,7 +1478,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           templates.push(newTemplate);
 
-          chrome.storage.sync.set({ promptTemplates: templates }, function() {
+          chrome.storage.local.set({ promptTemplates: templates }, function() {
             newPromptModal.style.display = 'none';
             loadPromptList();
             showToast('提示词保存成功', 'success');
@@ -1523,7 +1517,7 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
 
-        chrome.storage.sync.get({ promptTemplates: [] }, function(data) {
+        chrome.storage.local.get({ promptTemplates: [] }, function(data) {
           let templates = data.promptTemplates;
           
           // 如果标题被修改了，检查新标题是否已存在
@@ -1547,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return t;
           });
 
-          chrome.storage.sync.set({ promptTemplates: templates }, function() {
+          chrome.storage.local.set({ promptTemplates: templates }, function() {
             editPromptModal.style.display = 'none';
             loadPromptList();
             showToast('提示词更新成功', 'success');
@@ -1711,7 +1705,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     chatMessages.appendChild(typingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
-    chrome.storage.sync.get({
+    chrome.storage.local.get({
       apiUrl: 'https://api.openai.com/v1/chat/completions',
       apiKey: '',
       model: 'gpt-3.5-turbo',
@@ -1799,6 +1793,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } else {
       messageContent.textContent = content;
+      messageContent.style.whiteSpace = 'pre-line'; // 保留用户输入的换行
     }
     const messageTime = document.createElement('div');
     messageTime.className = 'message-time';

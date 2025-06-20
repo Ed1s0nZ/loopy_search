@@ -114,7 +114,7 @@
   flex: 1;
   padding: 16px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   font-size: 14px;
   line-height: 1.6;
   word-wrap: break-word;
@@ -159,13 +159,16 @@
 }
 
 .ai-search-result-content pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: pre;
+  word-break: break-all;
+  overflow-x: auto;
+  min-width: 100px;
+  max-width: 100%;
 }
 
 .ai-search-result-content code {
   white-space: pre-wrap;
-  word-wrap: break-word;
+  word-break: break-all;
 }
 
 .ai-search-result-content h1 {
@@ -211,7 +214,8 @@
 
 .ai-search-result-content table {
   border-collapse: collapse;
-  width: 100%;
+  min-width: max-content;
+  width: auto;
   margin: 8px 0;
   background: #fff;
 }
@@ -221,6 +225,10 @@
   padding: 8px 12px;
   text-align: left;
   font-size: 14px;
+  word-break: break-all;
+  white-space: normal;
+  min-width: 100px;
+  max-width: 220px;
 }
 
 .ai-search-result-content th {

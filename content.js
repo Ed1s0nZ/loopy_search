@@ -14,7 +14,7 @@ function generateId() {
 }
 
 // 初始化时读取用户设置
-chrome.storage.sync.get({
+chrome.storage.local.get({
   useMarkdown: true
 }, function(items) {
   isMarkdownMode = items.useMarkdown;
@@ -654,7 +654,7 @@ function runNetworkDiagnostics(container) {
   ];
   
   // 获取用户配置的API地址
-  chrome.storage.sync.get({ apiUrl: 'https://api.openai.com/v1/chat/completions' }, function(items) {
+  chrome.storage.local.get({ apiUrl: 'https://api.openai.com/v1/chat/completions' }, function(items) {
     // 添加用户配置的API地址到测试列表
     if (items.apiUrl) {
       const apiDomain = new URL(items.apiUrl).origin;
@@ -816,7 +816,7 @@ function showErrorState(title, message) {
         const detectedLang = detectLanguage(selectedText);
         if (detectedLang !== 'zh') {
           const translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-          chrome.storage.sync.get({
+          chrome.storage.local.get({
             apiUrl: 'https://api.openai.com/v1/chat/completions',
             apiKey: '',
             actualModel: 'gpt-3.5-turbo'
@@ -891,143 +891,141 @@ function searchWithAI(text, template = null) {
     conversationHistory = []; // 新对话时重置历史
   }
   showLoadingState('正在思考中...');
-
-  chrome.storage.sync.get({
+  chrome.storage.local.get({
     apiUrl: 'https://api.openai.com/v1/chat/completions',
-    apiKey: '',
     model: 'gpt-3.5-turbo',
     customModel: '',
     prompt: '请解释以下内容:',
     actualModel: 'gpt-3.5-turbo',
     useMarkdown: true,
     saveHistory: true
-  }, async function(items) {
-    if (!items.apiKey) {
-      showErrorState('API密钥未设置', '请先在扩展设置中配置API密钥');
-      return;
-    }
+  }, function(items) {
+    chrome.storage.local.get({ apiKey: '' }, async function(localItems) {
+      if (!localItems.apiKey) {
+        showErrorState('API密钥未设置', '请先在扩展设置中配置API密钥');
+        return;
+      }
+      try {
+        // 构建提示词
+        let finalPrompt;
+        let messages = [];
+        if (text.startsWith('基于之前的对话内容')) {
+          // 继续提问时，使用完整的对话历史
+          const newQuestion = text.replace('基于之前的对话内容：\n', '').split('\n\n新的问题：')[1];
+          
+          // 添加系统角色消息
+          messages.push({
+            role: 'system',
+            content: '你是一个有帮助的AI助手，请基于之前的对话回答用户的问题。'
+          });
 
-    try {
-      // 构建提示词
-      let finalPrompt;
-      let messages = [];
+          // 添加历史对话
+          for (const history of conversationHistory) {
+            messages.push({
+              role: 'user',
+              content: history.question
+            });
+            messages.push({
+              role: 'assistant',
+              content: history.answer
+            });
+          }
 
-      if (text.startsWith('基于之前的对话内容')) {
-        // 继续提问时，使用完整的对话历史
-        const newQuestion = text.replace('基于之前的对话内容：\n', '').split('\n\n新的问题：')[1];
-        
-        // 添加系统角色消息
-        messages.push({
-          role: 'system',
-          content: '你是一个有帮助的AI助手，请基于之前的对话回答用户的问题。'
-        });
-
-        // 添加历史对话
-        for (const history of conversationHistory) {
+          // 添加新问题
           messages.push({
             role: 'user',
-            content: history.question
+            content: newQuestion
           });
-          messages.push({
-            role: 'assistant',
-            content: history.answer
-          });
+
+          finalPrompt = newQuestion; // 用于保存历史
+        } else {
+          // 新对话
+          const promptText = template ? template.content + '\n' + text : items.prompt + '\n' + text;
+          messages = [
+            {
+              role: 'user',
+              content: promptText
+            }
+          ];
+          finalPrompt = text;
         }
 
-        // 添加新问题
-        messages.push({
-          role: 'user',
-          content: newQuestion
-        });
-
-        finalPrompt = newQuestion; // 用于保存历史
-      } else {
-        // 新对话
-        const promptText = template ? template.content + '\n' + text : items.prompt + '\n' + text;
-        messages = [
-          {
-            role: 'user',
-            content: promptText
-          }
-        ];
-        finalPrompt = text;
-      }
-
-      console.log('准备发送API请求，消息数量:', messages.length);
-      
-      // 获取响应
-      const response = await fetchAIResponse(
-        items.apiUrl,
-        items.apiKey,
-        items.actualModel,
-        messages
-      );
-      
-      if (!response.success) {
-        throw new Error(response.error || '未知错误');
-      }
-      
-      console.log('收到API响应:', { success: response.success });
-      
-      if (response.content) {
-        // 保存到对话历史
-        conversationHistory.push({
-          question: finalPrompt,
-          answer: response.content
-        });
-
-        // 保存原始结果
-        rawResult = response.content;
+        console.log('准备发送API请求，消息数量:', messages.length);
         
-        // 更新结果显示
-        console.log('更新结果显示');
-        updateResultContent(response.content);
+        // 获取响应
+        const response = await fetchAIResponse(
+          items.apiUrl,
+          localItems.apiKey,
+          items.actualModel,
+          messages
+        );
         
-        // 如果启用了历史记录保存
-        if (items.saveHistory) {
-          console.log('保存到历史记录');
-          // 判断类型
-          let type = 'select';
-          if (window.location.pathname.includes('popup.html')) {
-            type = 'chat';
-          } else {
-            type = 'select'; // 无论是否有template，全部归为select
-          }
-          if (text.startsWith('基于之前的对话内容')) {
+        if (!response.success) {
+          throw new Error(response.error || '未知错误');
+        }
+        
+        console.log('收到API响应:', { success: response.success });
+        
+        if (response.content) {
+          // 保存到对话历史
+          conversationHistory.push({
+            question: finalPrompt,
+            answer: response.content
+          });
+
+          // 保存原始结果
+          rawResult = response.content;
+          
+          // 更新结果显示
+          console.log('更新结果显示');
+          updateResultContent(response.content);
+          
+          // 如果启用了历史记录保存
+          if (items.saveHistory) {
+            console.log('保存到历史记录');
+            // 判断类型
+            let type = 'select';
             if (window.location.pathname.includes('popup.html')) {
               type = 'chat';
             } else {
-              type = 'select';
+              type = 'select'; // 无论是否有template，全部归为select
             }
+            if (text.startsWith('基于之前的对话内容')) {
+              if (window.location.pathname.includes('popup.html')) {
+                type = 'chat';
+              } else {
+                type = 'select';
+              }
+            }
+            const historyData = {
+              id: generateId(),
+              query: finalPrompt,
+              response: response.content,
+              timestamp: Date.now(),
+              type: type,
+              rating: 0
+            };
+            // 保存到历史记录
+            chrome.runtime.sendMessage({
+              action: 'saveSearchHistory',
+              data: historyData
+            }, function(response) {
+              if (chrome.runtime.lastError) {
+                console.error('保存历史记录失败:', chrome.runtime.lastError);
+              } else if (response && response.id) {
+                console.log('历史记录保存成功，ID:', response.id);
+                currentSearchId = response.id;
+              }
+            });
           }
-          const historyData = {
-            id: generateId(),
-            query: finalPrompt,
-            response: response.content,
-            timestamp: Date.now(),
-            type: type,
-            rating: 0
-          };
-          // 保存到历史记录
-          chrome.runtime.sendMessage({
-            action: 'saveSearchHistory',
-            data: historyData
-          }, function(response) {
-            if (chrome.runtime.lastError) {
-              console.error('保存历史记录失败:', chrome.runtime.lastError);
-            } else if (response && response.id) {
-              console.log('历史记录保存成功，ID:', response.id);
-              currentSearchId = response.id;
-            }
-          });
+        } else {
+          throw new Error('API返回内容为空');
         }
-      } else {
-        throw new Error('API返回内容为空');
+      } catch (error) {
+        console.error('AI搜索错误:', error);
+        showErrorState('请求失败', error.message);
       }
-    } catch (error) {
-      console.error('AI搜索错误:', error);
-      showErrorState('请求失败', error.message);
-    }
+    });
   });
 }
 
@@ -1076,27 +1074,24 @@ function showTranslationOptions(detectedLang) {
   translateButton.textContent = '翻译成中文';
   translateButton.addEventListener('click', function() {
     const translatePrompt = `请将以下${langName}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-    
-    // 获取API设置
-    chrome.storage.sync.get({
+    chrome.storage.local.get({
       apiUrl: 'https://api.openai.com/v1/chat/completions',
-      apiKey: '',
       actualModel: 'gpt-3.5-turbo'
     }, function(items) {
-      // 发送翻译请求
-      fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
-        .then(response => {
-          showAISearchResultWindow(response.content);
-          translateButton.textContent = '翻译';
-          translateButton.disabled = false;
-        })
-        .catch(error => {
-          showErrorState('翻译失败', error.message);
-          translateButton.textContent = '翻译';
-          translateButton.disabled = false;
-        });
+      chrome.storage.local.get({ apiKey: '' }, function(localItems) {
+        fetchAIResponse(items.apiUrl, localItems.apiKey, items.actualModel, translatePrompt)
+          .then(response => {
+            showAISearchResultWindow(response.content);
+            translateButton.textContent = '翻译';
+            translateButton.disabled = false;
+          })
+          .catch(error => {
+            showErrorState('翻译失败', error.message);
+            translateButton.textContent = '翻译';
+            translateButton.disabled = false;
+          });
+      });
     });
-    
     document.body.removeChild(optionsPopup);
   });
   buttonGroup.appendChild(translateButton);
@@ -1106,23 +1101,20 @@ function showTranslationOptions(detectedLang) {
   bothButton.textContent = '解释并翻译';
   bothButton.addEventListener('click', function() {
     const bothPrompt = `请先将以下${langName}文本翻译成中文，然后解释其含义：\n\n${selectedText}`;
-    
-    // 获取API设置
-    chrome.storage.sync.get({
+    chrome.storage.local.get({
       apiUrl: 'https://api.openai.com/v1/chat/completions',
-      apiKey: '',
       actualModel: 'gpt-3.5-turbo'
     }, function(items) {
-      // 发送请求
-      fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, bothPrompt)
-        .then(response => {
-          showAISearchResultWindow(response.content);
-        })
-        .catch(error => {
-          showErrorState('请求失败', error.message);
-        });
+      chrome.storage.local.get({ apiKey: '' }, function(localItems) {
+        fetchAIResponse(items.apiUrl, localItems.apiKey, items.actualModel, bothPrompt)
+          .then(response => {
+            showAISearchResultWindow(response.content);
+          })
+          .catch(error => {
+            showErrorState('请求失败', error.message);
+          });
+      });
     });
-    
     document.body.removeChild(optionsPopup);
   });
   buttonGroup.appendChild(bothButton);
@@ -1180,7 +1172,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       } else {
         translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
       }
-      chrome.storage.sync.get({
+      chrome.storage.local.get({
         apiUrl: 'https://api.openai.com/v1/chat/completions',
         apiKey: '',
         actualModel: 'gpt-3.5-turbo'
@@ -1383,14 +1375,14 @@ function openSettings() {
 
 // 保存备忘录
 function saveMemo(text) {
-  chrome.storage.sync.get({ memos: [] }, function(data) {
+  chrome.storage.local.get({ memos: [] }, function(data) {
     const memos = data.memos;
     memos.push({
       id: Date.now(),
       text: text,
       timestamp: new Date().toISOString()
     });
-    chrome.storage.sync.set({ memos: memos }, function() {
+    chrome.storage.local.set({ memos: memos }, function() {
       console.log('备忘录已保存');
     });
   });
@@ -1398,16 +1390,16 @@ function saveMemo(text) {
 
 // 获取所有备忘录
 function getMemos(callback) {
-  chrome.storage.sync.get({ memos: [] }, function(data) {
+  chrome.storage.local.get({ memos: [] }, function(data) {
     callback(data.memos);
   });
 }
 
 // 删除备忘录
 function deleteMemo(id) {
-  chrome.storage.sync.get({ memos: [] }, function(data) {
+  chrome.storage.local.get({ memos: [] }, function(data) {
     const memos = data.memos.filter(memo => memo.id !== id);
-    chrome.storage.sync.set({ memos: memos }, function() {
+    chrome.storage.local.set({ memos: memos }, function() {
       console.log('备忘录已删除');
     });
   });

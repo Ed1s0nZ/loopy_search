@@ -20,7 +20,7 @@ function updateContextMenus() {
     });
 
     // 获取所有提示词模板和默认提示词前缀
-    chrome.storage.sync.get({ 
+    chrome.storage.local.get({ 
       promptTemplates: [],
       prompt: '请解释以下内容:'
     }, function(data) {
@@ -98,7 +98,7 @@ chrome.runtime.onInstalled.addListener(function() {
   });
   
   // 加载历史记录保留天数设置
-  chrome.storage.sync.get({ historyRetention: 7 }, function(data) {
+  chrome.storage.local.get({ historyRetention: 7 }, function(data) {
     historyRetentionDays = data.historyRetention;
   });
   
@@ -137,7 +137,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
 
   if (info.menuItemId === "defaultPrompt") {
     // 使用默认提示词
-    chrome.storage.sync.get({ prompt: '请解释以下内容:' }, function(data) {
+    chrome.storage.local.get({ prompt: '请解释以下内容:' }, function(data) {
       try {
         chrome.tabs.sendMessage(tab.id, {
           action: "searchWithAI",
@@ -189,7 +189,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
     const promptTitle = info.menuItemId.replace('prompt_', '');
     
     // 获取对应的提示词模板
-    chrome.storage.sync.get({ promptTemplates: [] }, function(data) {
+    chrome.storage.local.get({ promptTemplates: [] }, function(data) {
       const template = data.promptTemplates.find(t => t.title === promptTitle);
       if (template) {
         // 发送消息到内容脚本，包含提示词模板
@@ -274,12 +274,6 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
 // 清理过期的历史记录
 function cleanupHistory() {
   console.debug('开始清理历史记录, 保留天数:', historyRetentionDays);
-  
-  // 如果设置为永久保留，则不执行清理
-  if (historyRetentionDays === 0) {
-    console.debug('历史记录设置为永久保留，跳过清理');
-    return;
-  }
   
   chrome.storage.local.get('searchHistory', function(data) {
     const history = data.searchHistory || [];
@@ -462,7 +456,7 @@ function saveSearchHistory(data) {
     queryLength: data.query.length
   });
   
-  chrome.storage.sync.get({ saveHistory: true }, function(config) {
+  chrome.storage.local.get({ saveHistory: true }, function(config) {
     // 如果用户禁用了历史记录，则不保存
     if (!config.saveHistory) {
       console.debug('历史记录功能已禁用，跳过保存');

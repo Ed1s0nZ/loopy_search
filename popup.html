@@ -688,6 +688,20 @@
       color: #333;
     }
 
+    /* 用户消息时间靠右 */
+    .user .message-time {
+      text-align: right;
+      display: block;
+      width: 100%;
+    }
+
+    /* AI消息时间靠左 */
+    .assistant .message-time {
+      text-align: left;
+      display: block;
+      width: 100%;
+    }
+
     .message-time {
       font-size: 11px;
       color: #666;
@@ -910,7 +924,6 @@
           <option value="7" selected>7天</option>
           <option value="14">14天</option>
           <option value="30">30天</option>
-          <option value="0">永久保留</option>
         </select>
       </div>
       
