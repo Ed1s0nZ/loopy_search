@@ -151,6 +151,59 @@
       max-height: 400px;
       overflow-x: auto;
       overflow-y: auto;
+      white-space: normal;
+    }
+    .history-response table {
+      border-collapse: collapse;
+      min-width: max-content;
+      width: auto;
+      margin: 1em 0;
+    }
+    .history-response th, .history-response td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+      word-break: break-all;
+      white-space: normal;
+      min-width: 100px;
+      max-width: 220px;
+    }
+    .history-response th {
+      background-color: #f5f5f5;
+    }
+    .history-response pre {
+      background-color: #f0f0f0;
+      padding: 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 13px;
+      white-space: pre;
+      word-break: break-all;
+      min-width: max-content;
+      display: block;
+    }
+    .history-response code {
+      font-family: Consolas, Monaco, 'Andale Mono', monospace;
+      font-size: 0.9em;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+      min-width: max-content;
+      display: inline-block;
+    }
+    .history-response pre code {
+      padding: 0;
+      background-color: transparent;
+    }
+    .history-response blockquote {
+      border-left: 4px solid #ddd;
+      margin-left: 0;
+      padding-left: 10px;
+      color: #666;
+    }
+    .history-response ul,
+    .history-response ol {
+      padding-left: 20px;
     }
     .history-actions {
       display: flex;
@@ -286,50 +339,6 @@
     }
     .history-response a:hover {
       text-decoration: underline;
-    }
-    .history-response pre {
-      background-color: #f0f0f0;
-      padding: 12px;
-      border-radius: 4px;
-      overflow-x: auto;
-      font-size: 13px;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    .history-response code {
-      font-family: Consolas, Monaco, 'Andale Mono', monospace;
-      font-size: 0.9em;
-      background-color: #f5f5f5;
-      padding: 2px 4px;
-      border-radius: 3px;
-    }
-    .history-response pre code {
-      padding: 0;
-      background-color: transparent;
-    }
-    .history-response blockquote {
-      border-left: 4px solid #ddd;
-      margin-left: 0;
-      padding-left: 10px;
-      color: #666;
-    }
-    .history-response ul,
-    .history-response ol {
-      padding-left: 20px;
-    }
-    .history-response table {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 1em 0;
-    }
-    .history-response table th,
-    .history-response table td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: left;
-    }
-    .history-response table th {
-      background-color: #f5f5f5;
     }
   </style>
 </head>
