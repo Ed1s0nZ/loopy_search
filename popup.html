@@ -608,9 +608,14 @@
     }
 
     .message {
-      margin-bottom: 15px;
+      display: flex;
+      flex-direction: column;
       max-width: 85%;
+      width: fit-content;
+      min-width: 48px;
+      margin-bottom: 15px;
       animation: messageSlideIn 0.3s ease;
+      word-break: break-all;
     }
 
     @keyframes messageSlideIn {
@@ -626,10 +631,12 @@
 
     .message.user {
       margin-left: auto;
+      align-items: flex-end;
     }
 
     .message.assistant {
       margin-right: auto;
+      align-items: flex-start;
     }
 
     .message-content {
