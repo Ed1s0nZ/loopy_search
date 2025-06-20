@@ -960,16 +960,8 @@ function searchWithAI(text, template = null) {
         );
         
         if (!response.success) {
-          if (response.isRateLimit) {
-            // 如果是并发限制错误,显示友好提示
-            showErrorState('请求受限', '当前请求已达到最大并发数限制,请等待1秒后重试');
-            // 1秒后自动重试
-            setTimeout(() => {
-              searchWithAI(text, template);
-            }, 1000);
-            return;
-          }
-          throw new Error(response.error || '未知错误');
+          // 直接抛出API返回的错误信息
+          throw new Error(response.error);
         }
         
         console.log('收到API响应:', { success: response.success });
