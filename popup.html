@@ -874,6 +874,7 @@
         <div class="nav-tab" data-tab="chat">对话</div>
         <div class="nav-tab" data-tab="history">历史记录</div>
         <div class="nav-tab" data-tab="codec">编码/解码</div>
+        <div class="nav-tab" data-tab="request">发包工具</div>
       </div>
       <div id="rightMask" class="nav-mask nav-mask-right"></div>
       <div id="leftMask" class="nav-mask nav-mask-left" style="display:none;"></div>
@@ -1088,6 +1089,53 @@
         <div style="position: relative;">
           <textarea id="codecOutput" rows="4" readonly placeholder="结果会显示在这里" style="flex:1;"></textarea>
           <button id="copyCodecOutputBtn" title="复制结果" style="background: none; border: none; cursor: pointer; position: absolute; right: 12px; top: 12px; padding: 0; display: flex; align-items: center; justify-content: center;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="8" width="10" height="12" rx="2" stroke="#1a73e8" stroke-width="2" fill="#fff"/>
+              <rect x="4" y="4" width="10" height="12" rx="2" stroke="#1a73e8" stroke-width="2" fill="#fff"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="request" class="tab-content">
+      <div class="section-title">HTTP请求工具</div>
+      <div class="form-group">
+        <label for="requestMethod">请求方法</label>
+        <select id="requestMethod">
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="DELETE">DELETE</option>
+          <option value="PATCH">PATCH</option>
+          <option value="HEAD">HEAD</option>
+          <option value="OPTIONS">OPTIONS</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="requestUrl">请求URL</label>
+        <input type="text" id="requestUrl" placeholder="https://example.com/api">
+      </div>
+      
+      <div class="form-group">
+        <label for="requestHeaders">请求头 (JSON格式)</label>
+        <textarea id="requestHeaders" rows="4" placeholder='{"Content-Type": "application/json"}'></textarea>
+      </div>
+      
+      <div class="form-group">
+        <label for="requestBody">请求体</label>
+        <textarea id="requestBody" rows="4" placeholder="请输入请求体内容"></textarea>
+      </div>
+      
+      <div class="btn-group btn-group-right">
+        <button id="sendRequestBtn">发送请求</button>
+      </div>
+      
+      <div class="form-group">
+        <label for="responseOutput">响应结果</label>
+        <div style="position: relative;">
+          <textarea id="responseOutput" rows="6" readonly placeholder="响应结果会显示在这里"></textarea>
+          <button id="copyResponseBtn" title="复制结果" style="background: none; border: none; cursor: pointer; position: absolute; right: 12px; top: 12px; padding: 0; display: flex; align-items: center; justify-content: center;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="8" y="8" width="10" height="12" rx="2" stroke="#1a73e8" stroke-width="2" fill="#fff"/>
               <rect x="4" y="4" width="10" height="12" rx="2" stroke="#1a73e8" stroke-width="2" fill="#fff"/>

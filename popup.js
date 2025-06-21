@@ -1937,4 +1937,90 @@ document.addEventListener('DOMContentLoaded', function() {
   if (navTabsMask) navTabsMask.addEventListener('scroll', updateNavMask);
   window.addEventListener('resize', updateNavMask);
   tryUpdateNavMask();
+
+  // HTTP请求工具相关代码
+  document.getElementById('sendRequestBtn').addEventListener('click', async () => {
+    const method = document.getElementById('requestMethod').value;
+    const url = document.getElementById('requestUrl').value;
+    let headers = {};
+    const headersText = document.getElementById('requestHeaders').value;
+    const body = document.getElementById('requestBody').value;
+    const responseOutput = document.getElementById('responseOutput');
+
+    // 验证URL
+    if (!url) {
+      responseOutput.value = '错误：请输入有效的URL';
+      return;
+    }
+
+    try {
+      // 解析headers
+      if (headersText) {
+        try {
+          headers = JSON.parse(headersText);
+        } catch (e) {
+          responseOutput.value = '错误：请求头格式不正确，请使用有效的JSON格式';
+          return;
+        }
+      }
+
+      // 准备请求配置
+      const requestOptions = {
+        method: method,
+        headers: headers,
+        mode: 'cors',
+      };
+
+      // 如果有请求体且不是GET/HEAD请求，添加body
+      if (body && !['GET', 'HEAD'].includes(method)) {
+        requestOptions.body = body;
+      }
+
+      // 发送请求
+      responseOutput.value = '正在发送请求...';
+      const response = await fetch(url, requestOptions);
+      
+      // 获取响应头
+      const responseHeaders = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      // 获取响应体
+      let responseBody;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseBody = await response.json();
+      } else {
+        responseBody = await response.text();
+      }
+
+      // 格式化输出
+      const result = {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders,
+        body: responseBody
+      };
+
+      responseOutput.value = JSON.stringify(result, null, 2);
+    } catch (error) {
+      responseOutput.value = `错误：${error.message}`;
+    }
+  });
+
+  // 复制响应结果按钮
+  document.getElementById('copyResponseBtn').addEventListener('click', () => {
+    const responseOutput = document.getElementById('responseOutput');
+    responseOutput.select();
+    document.execCommand('copy');
+    
+    // 显示复制成功提示
+    const copyBtn = document.getElementById('copyResponseBtn');
+    const originalTitle = copyBtn.title;
+    copyBtn.title = '已复制!';
+    setTimeout(() => {
+      copyBtn.title = originalTitle;
+    }, 1500);
+  });
 }); 
