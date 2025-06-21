@@ -1939,6 +1939,43 @@ document.addEventListener('DOMContentLoaded', function() {
   tryUpdateNavMask();
 
   // HTTP请求工具相关代码
+  const requestMethod = document.getElementById('requestMethod');
+  const requestUrl = document.getElementById('requestUrl');
+  const requestHeaders = document.getElementById('requestHeaders');
+  const requestBody = document.getElementById('requestBody');
+  
+  // 从存储中恢复HTTP请求工具的状态
+  chrome.storage.local.get({
+    httpTool: {
+      method: 'GET',
+      url: '',
+      headers: '',
+      body: ''
+    }
+  }, function(items) {
+    requestMethod.value = items.httpTool.method;
+    requestUrl.value = items.httpTool.url;
+    requestHeaders.value = items.httpTool.headers;
+    requestBody.value = items.httpTool.body;
+  });
+
+  // 保存HTTP请求工具的状态
+  function saveHttpToolState() {
+    const state = {
+      method: requestMethod.value,
+      url: requestUrl.value,
+      headers: requestHeaders.value,
+      body: requestBody.value
+    };
+    chrome.storage.local.set({ httpTool: state });
+  }
+
+  // 监听输入变化并保存状态
+  requestMethod.addEventListener('change', saveHttpToolState);
+  requestUrl.addEventListener('input', saveHttpToolState);
+  requestHeaders.addEventListener('input', saveHttpToolState);
+  requestBody.addEventListener('input', saveHttpToolState);
+
   document.getElementById('sendRequestBtn').addEventListener('click', async () => {
     const method = document.getElementById('requestMethod').value;
     const url = document.getElementById('requestUrl').value;
@@ -2022,5 +2059,17 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
       copyBtn.title = originalTitle;
     }, 1500);
+  });
+
+  // 清空按钮功能
+  document.getElementById('clearRequestBtn').addEventListener('click', () => {
+    // 清空所有输入框
+    requestMethod.value = 'GET';
+    requestUrl.value = '';
+    requestHeaders.value = '';
+    requestBody.value = '';
+    
+    // 保存清空后的状态
+    saveHttpToolState();
   });
 }); 
