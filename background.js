@@ -133,7 +133,7 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
 chrome.contextMenus.onClicked.addListener(function(info, tab) {
   if (!info.selectionText) return;
 
-  // 记录选中的文本
+  // 记录选中的文本，但我们会在content script中重新获取完整文本
   lastSelectedText = info.selectionText;
 
   if (info.menuItemId === "defaultPrompt") {
@@ -141,8 +141,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
     chrome.storage.local.get({ prompt: '请解释以下内容:' }, function(data) {
       try {
         chrome.tabs.sendMessage(tab.id, {
-          action: "searchWithAI",
-          text: info.selectionText,
+          action: "getSelectedText",
           template: {
             title: "默认提示词",
             content: data.prompt,
@@ -167,8 +166,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
                 }, function() {
                   setTimeout(function() {
                     chrome.tabs.sendMessage(tab.id, {
-                      action: "searchWithAI",
-                      text: info.selectionText,
+                      action: "getSelectedText",
                       template: {
                         title: "默认提示词",
                         content: data.prompt,
@@ -196,8 +194,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
         // 发送消息到内容脚本，包含提示词模板
         try {
           chrome.tabs.sendMessage(tab.id, {
-            action: "searchWithAI",
-            text: info.selectionText,
+            action: "getSelectedText",
             template: template
           }, function(response) {
             if (chrome.runtime.lastError && chrome.runtime.lastError.message.includes('Could not establish connection')) {
@@ -218,8 +215,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
                   }, function() {
                     setTimeout(function() {
                       chrome.tabs.sendMessage(tab.id, {
-                        action: "searchWithAI",
-                        text: info.selectionText,
+                        action: "getSelectedText",
                         template: template
                       });
                     }, 500);

@@ -102,6 +102,9 @@ function getLanguageName(langCode) {
 // 处理AI搜索按钮点击事件
 function handleAISearchButtonClick() {
   if (selectedText) {
+    // 确保选中的文本保留换行符
+    selectedText = selectedText.replace(/\r\n/g, '\n'); // 统一换行符为 \n
+    
     // 检测语言
     const detectedLang = detectLanguage(selectedText);
     
@@ -521,9 +524,11 @@ async function updateResultContent(result) {
       // 使用 marked 解析 markdown，支持表格等GFM语法
       let htmlContent = '';
       if (window.marked) {
+        // 确保换行符被正确处理
+        result = result.replace(/\r\n/g, '\n'); // 统一换行符
         htmlContent = window.marked.parse(result);
       } else {
-        htmlContent = result;
+        htmlContent = result.replace(/\n/g, '<br>'); // 如果没有marked，使用<br>标签
       }
       // 创建一个包装容器
       const markdownContainer = document.createElement('div');
@@ -533,6 +538,8 @@ async function updateResultContent(result) {
       content.innerHTML = '';
       content.appendChild(markdownContainer);
     } else {
+      // 纯文本模式下保留换行
+      content.style.whiteSpace = 'pre-wrap';
       content.textContent = result || '内容为空';
     }
 
@@ -1161,6 +1168,16 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         searchWithAI(selectedText, request.template);
       }
     }
+  } else if (request.action === "getSelectedText") {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim()) {
+      // 获取完整的选中文本，保留换行符
+      selectedText = selection.toString();
+      // 统一换行符为\n
+      selectedText = selectedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      // 使用获取到的完整文本调用searchWithAI
+      searchWithAI(selectedText, request.template);
+    }
   } else if (request.action === "translateSelectedText") {
     const selection = window.getSelection();
     if (selection && selection.toString().trim() !== '') {
@@ -1677,12 +1694,27 @@ function addResizeStyles() {
       overflow-y: auto;
       padding: 15px;
       min-height: 100px;
-      margin-bottom: 106px; /* 为底部的继续提问区域和工具栏留出空间 */
+      margin-bottom: 106px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+
+    .markdown-body {
+      white-space: normal;
+    }
+
+    .markdown-body pre {
+      white-space: pre-wrap;
+    }
+
+    .markdown-body code {
+      white-space: pre-wrap;
     }
 
     .ai-continue-ask-area {
       position: absolute;
-      bottom: 50px; /* 在底部工具栏上方 */
+      bottom: 50px;
       left: 0;
       right: 0;
       padding: 10px 15px;
@@ -1757,7 +1789,7 @@ function addResizeStyles() {
       gap: 8px;
       flex-wrap: nowrap;
       overflow-x: auto;
-      max-width: calc(100% - 100px); /* 减去左侧文字的空间 */
+      max-width: calc(100% - 100px);
     }
 
     .ai-search-result-format-toggle {
