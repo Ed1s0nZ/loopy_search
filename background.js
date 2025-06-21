@@ -145,7 +145,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
           text: info.selectionText,
           template: {
             title: "默认提示词",
-            content: data.prompt + '\n' + info.selectionText,
+            content: data.prompt,
             category: "通用"
           }
         }, function(response) {
@@ -171,7 +171,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
                       text: info.selectionText,
                       template: {
                         title: "默认提示词",
-                        content: data.prompt + '\n' + info.selectionText,
+                        content: data.prompt,
                         category: "通用"
                       }
                     });
