@@ -100,8 +100,8 @@ document.addEventListener('DOMContentLoaded', function() {
       filteredHistory = history.filter(item => {
         // 搜索词过滤
         const matchesSearch = 
-          item.query.toLowerCase().includes(searchTerm) || 
-          item.response.toLowerCase().includes(searchTerm);
+          (item?.query?.toLowerCase()?.includes(searchTerm) || false) || 
+          (item?.response?.toLowerCase()?.includes(searchTerm) || false);
         
         // 评分过滤
         let matchesFilter = true;
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // 截取查询内容作为标题
-    const titleText = item.query.length > 50 ? item.query.substring(0, 50) + '...' : item.query;
+    const titleText = item?.query?.length > 50 ? item.query.substring(0, 50) + '...' : (item?.query || '无查询内容');
     
     historyItem.innerHTML = `
       <div class="history-item-header">
@@ -187,8 +187,8 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       </div>
       <div class="history-item-content">
-        <div class="history-query">${item.query}</div>
-        <div class="history-response">${marked.parse(item.response)}</div>
+        <div class="history-query">${item?.query || '无查询内容'}</div>
+        <div class="history-response">${marked.parse(item?.response || '无响应内容')}</div>
       </div>
       <div class="history-actions">
         <button class="history-action-btn copy-btn" data-id="${item.id}">复制结果</button>
