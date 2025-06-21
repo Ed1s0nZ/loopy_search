@@ -103,7 +103,7 @@ function getLanguageName(langCode) {
 function handleAISearchButtonClick() {
   if (selectedText) {
     // 确保选中的文本保留换行符
-    selectedText = selectedText.replace(/\r\n/g, '\n'); // 统一换行符为 \n
+    selectedText = selectedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     
     // 检测语言
     const detectedLang = detectLanguage(selectedText);
@@ -1159,12 +1159,16 @@ function showTranslationOptions(detectedLang) {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   if (request.action === "searchWithAI") {
     if (request.text) {
-      selectedText = request.text;
-      searchWithAI(request.text, request.template);
+      // 确保传入的文本也处理换行符
+      selectedText = request.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      searchWithAI(selectedText, request.template);
     } else if (request.useSelectedText) {
       const selection = window.getSelection();
       if (selection && selection.toString().trim()) {
-        selectedText = selection.toString().trim();
+        // 获取完整的选中文本，保留换行符
+        selectedText = selection.toString();
+        // 统一换行符为\n
+        selectedText = selectedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         searchWithAI(selectedText, request.template);
       }
     }
@@ -1181,7 +1185,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   } else if (request.action === "translateSelectedText") {
     const selection = window.getSelection();
     if (selection && selection.toString().trim() !== '') {
-      selectedText = selection.toString().trim();
+      // 获取完整的选中文本，保留换行符
+      selectedText = selection.toString();
+      // 统一换行符为\n
+      selectedText = selectedText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const detectedLang = detectLanguage(selectedText);
       let translatePrompt;
       if (detectedLang === 'zh') {
