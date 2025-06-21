@@ -646,6 +646,7 @@
       line-height: 1.5;
       word-break: break-all;
       overflow-wrap: break-word;
+      max-width: 100%;  /* 限制最大宽度 */
     }
 
     /* markdown美化 */
@@ -662,23 +663,23 @@
       padding-left: 1em;
     }
     .message-content table {
-      /* 当表格过宽时，允许水平滚动 */
       display: block;
-      overflow-x: auto;
-      border-collapse: collapse;
       width: 100%;
+      overflow-x: auto;
+      white-space: nowrap;  /* 防止表格内容换行 */
+      border-collapse: collapse;
       margin: 10px 0;
       background: #fff;
+      -webkit-overflow-scrolling: touch;  /* 在iOS上提供更好的滚动体验 */
     }
     .message-content th, .message-content td {
       border: 1px solid #ddd;
       padding: 8px 12px;
       text-align: left;
       font-size: 14px;
-      /* 优化表格列宽和换行 */
-      min-width: 100px;      /* 保证最小列宽，避免内容挤在一起 */
-      max-width: 300px;      /* 限制最大列宽，使过长文本可以换行 */
-      word-wrap: break-word; /* 允许在长单词内部换行 */
+      min-width: 100px;
+      max-width: none;  /* 移除最大宽度限制 */
+      white-space: normal;  /* 允许单元格内容换行 */
     }
     .message-content th {
       background: #f5f5f5;
