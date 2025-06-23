@@ -335,8 +335,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // 确认清空历史记录
   function confirmClearHistory() {
     if (confirm('确定要清空所有历史记录吗？此操作无法撤销。')) {
-      chrome.storage.local.set({ searchHistory: [] }, function() {
-        showEmptyState();
+      chrome.storage.local.remove('searchHistory', function() {
+        loadHistory();
       });
     }
   }
@@ -405,23 +405,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
-
-  // 修复按钮 ID
-  document.getElementById('settings').addEventListener('click', function() {
-    chrome.runtime.sendMessage({ action: 'openSettings' }, function(response) {
-      if (chrome.runtime.lastError || !response.success) {
-        console.error('打开设置页面失败:', chrome.runtime.lastError || response.error);
-      }
-    });
-  });
-
-  document.getElementById('clearHistory').addEventListener('click', function() {
-    if (confirm('确定要清空所有历史记录吗？此操作不可恢复。')) {
-      chrome.storage.local.remove('searchHistory', function() {
-        loadHistory();
-      });
-    }
-  });
 
   // 在文件末尾或合适位置加样式
   const style = document.createElement('style');
