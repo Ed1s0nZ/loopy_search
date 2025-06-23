@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const searchInput = document.getElementById('searchInput');
   const filterOptions = document.querySelectorAll('input[name="filter"]');
   const exportHistoryBtn = document.getElementById('exportHistory');
+  const sourceSelect = document.getElementById('sourceFilter');
   
   // 分页设置
   const itemsPerPage = 10;
@@ -35,39 +36,6 @@ document.addEventListener('DOMContentLoaded', function() {
   filterOptions.forEach(option => {
     option.addEventListener('change', filterHistory);
   });
-  
-  // 在筛选区插入来源筛选下拉框和label
-  const sourceSelect = document.createElement('select');
-  sourceSelect.id = 'sourceFilter';
-  sourceSelect.style.marginLeft = '16px';
-  sourceSelect.innerHTML = `
-    <option value="all">全部来源</option>
-    <option value="chat">对话</option>
-    <option value="select">划词/右键</option>
-    <option value="other">其他</option>
-  `;
-  const sourceLabel = document.createElement('label');
-  sourceLabel.textContent = '来源：';
-  sourceLabel.setAttribute('for', 'sourceFilter');
-  sourceLabel.style.marginLeft = '16px';
-  sourceLabel.style.fontSize = '14px';
-  sourceLabel.style.color = '#555';
-  sourceLabel.style.verticalAlign = 'middle';
-  sourceLabel.style.fontWeight = 'normal';
-  
-  // 创建来源分组div，使label和下拉框紧挨
-  const sourceGroup = document.createElement('div');
-  sourceGroup.style.display = 'flex';
-  sourceGroup.style.alignItems = 'center';
-  sourceGroup.style.gap = '4px';
-  sourceGroup.appendChild(sourceLabel);
-  sourceGroup.appendChild(sourceSelect);
-  
-  if (searchInput && searchInput.parentNode) {
-    searchInput.parentNode.insertBefore(sourceGroup, searchInput);
-  }
-
-  // 监听来源筛选变化
   sourceSelect.addEventListener('change', filterHistory);
   
   // 加载历史记录
@@ -420,30 +388,6 @@ document.addEventListener('DOMContentLoaded', function() {
   .history-source.chat { background: #1a73e8; }
   .history-source.select { background: #34a853; }
   .history-source.other { background: #fbbc05; }
-  #sourceFilter {
-    height: 32px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 0 12px;
-    font-size: 14px;
-    background: #fff;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-  .filter-bar, .history-filter, .search-bar {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-  }
-  label[for="sourceFilter"] {
-    margin: 0;
-    font-size: 14px;
-    color: #555;
-    vertical-align: middle;
-    font-weight: normal;
-    white-space: nowrap;
-    line-height: 32px;
-  }
   `;
   document.head.appendChild(style);
 }); 

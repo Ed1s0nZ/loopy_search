@@ -263,51 +263,113 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 15px;
-      padding: 10px 15px;
+      margin-bottom: 20px;
+      padding: 16px 20px;
       background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      gap: 20px;
       flex-wrap: wrap;
-      gap: 10px;
+    }
+    .filter-left {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      flex: 2;
+      min-width: 300px;
     }
     .filter-options {
       display: flex;
-      gap: 15px;
+      gap: 16px;
       flex-wrap: wrap;
     }
     .filter-option {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       font-size: 14px;
-      color: #666;
+      color: #555;
       cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
       white-space: nowrap;
     }
-    .filter-option input {
+    .filter-option:hover {
+      background-color: #f5f5f5;
+    }
+    .filter-option input[type="radio"] {
       margin: 0;
+      width: 16px;
+      height: 16px;
+      accent-color: #1a73e8;
+    }
+    .source-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 140px;
+    }
+    .source-filter label {
+      font-size: 14px;
+      color: #555;
+      white-space: nowrap;
+    }
+    .source-filter select {
+      padding: 6px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #333;
+      background-color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 100px;
+      max-width: 120px;
+    }
+    .source-filter select:hover {
+      border-color: #1a73e8;
+    }
+    .source-filter select:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
     }
     .search-bar {
-      position: relative;
-      min-width: 200px;
-      max-width: 100%;
       flex: 1;
+      min-width: 200px;
+      max-width: 300px;
+      position: relative;
     }
     .search-bar input {
       width: 100%;
-      padding: 8px 10px 8px 30px;
+      padding: 8px 12px 8px 36px;
       border: 1px solid #ddd;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 14px;
+      transition: all 0.2s;
+      background-color: #f5f5f5;
       box-sizing: border-box;
+    }
+    .search-bar input:hover {
+      background-color: white;
+      border-color: #1a73e8;
+    }
+    .search-bar input:focus {
+      outline: none;
+      background-color: white;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
     }
     .search-bar::before {
       content: "🔍";
       position: absolute;
+      left: 12px;
       top: 50%;
       transform: translateY(-50%);
-      color: #999;
+      color: #666;
+      font-size: 14px;
       pointer-events: none;
     }
     /* Markdown 样式 */
@@ -340,6 +402,28 @@
     .history-response a:hover {
       text-decoration: underline;
     }
+    
+    @media (max-width: 768px) {
+      .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+      }
+      .filter-left {
+        flex-direction: column;
+        gap: 16px;
+      }
+      .search-bar {
+        max-width: none;
+      }
+      .source-filter {
+        max-width: none;
+      }
+      .source-filter select {
+        max-width: none;
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
@@ -359,16 +443,27 @@
     </div>
     
     <div class="filter-bar">
-      <div class="filter-options">
-        <label class="filter-option">
-          <input type="radio" name="filter" value="all" checked> 全部
-        </label>
-        <label class="filter-option">
-          <input type="radio" name="filter" value="liked"> 已点赞
-        </label>
-        <label class="filter-option">
-          <input type="radio" name="filter" value="disliked"> 已踩
-        </label>
+      <div class="filter-left">
+        <div class="filter-options">
+          <label class="filter-option">
+            <input type="radio" name="filter" value="all" checked> 全部
+          </label>
+          <label class="filter-option">
+            <input type="radio" name="filter" value="liked"> 已点赞
+          </label>
+          <label class="filter-option">
+            <input type="radio" name="filter" value="disliked"> 已踩
+          </label>
+        </div>
+        <div class="source-filter">
+          <label for="sourceFilter">来源：</label>
+          <select id="sourceFilter">
+            <option value="all">全部来源</option>
+            <option value="chat">对话</option>
+            <option value="select">划词/右键</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
       </div>
       <div class="search-bar">
         <input type="text" id="searchInput" placeholder="搜索历史记录...">
