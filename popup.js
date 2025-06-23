@@ -1642,7 +1642,7 @@ document.addEventListener('DOMContentLoaded', function() {
       conversationHistory = session;
       chatMessages.innerHTML = '';
       session.forEach(msg => {
-        addMessageToChat(msg.role, msg.content, msg.role === 'assistant' ? getMarkdownSetting() : false);
+        addMessageToChat(msg.role, msg.content, msg.role === 'assistant' ? getMarkdownSetting() : false, msg.timestamp);
       });
       updateContextLength();
     });
@@ -1689,8 +1689,9 @@ document.addEventListener('DOMContentLoaded', function() {
   async function sendMessage() {
     const message = chatInput.value.trim();
     if (!message) return;
-    addMessageToChat('user', message);
-    conversationHistory.push({ role: 'user', content: message });
+    const timestamp = Date.now();
+    addMessageToChat('user', message, false, timestamp);
+    conversationHistory.push({ role: 'user', content: message, timestamp: timestamp });
     chatInput.value = '';
     sendButton.disabled = true;
     updateContextLength();
@@ -1742,19 +1743,21 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           const aiContent = response.data.choices && response.data.choices[0].message && response.data.choices[0].message.content ? response.data.choices[0].message.content : '';
           if (!aiContent) {
-            addMessageToChat('assistant', '❌ AI未返回内容');
-            conversationHistory.push({ role: 'assistant', content: '❌ AI未返回内容' });
+            const errorTimestamp = Date.now();
+            addMessageToChat('assistant', '❌ AI未返回内容', false, errorTimestamp);
+            conversationHistory.push({ role: 'assistant', content: '❌ AI未返回内容', timestamp: errorTimestamp });
             saveChatSession();
             updateContextLength();
             return;
           }
-          addMessageToChat('assistant', aiContent, items.useMarkdown);
+          const responseTimestamp = Date.now();
+          addMessageToChat('assistant', aiContent, items.useMarkdown, responseTimestamp);
           if (items.saveHistory) {
             const historyData = {
               id: generateId(),
               query: message,
               response: aiContent,
-              timestamp: Date.now(),
+              timestamp: responseTimestamp,
               type: 'chat',
               rating: 0
             };
@@ -1764,14 +1767,15 @@ document.addEventListener('DOMContentLoaded', function() {
               chrome.storage.local.set({ searchHistory: history });
             });
           }
-          conversationHistory.push({ role: 'assistant', content: aiContent });
+          conversationHistory.push({ role: 'assistant', content: aiContent, timestamp: responseTimestamp });
           saveChatSession();
           updateContextLength();
         });
       } catch (err) {
         typingDiv.remove();
-        addMessageToChat('assistant', '❌ 请求异常：' + err.message);
-        conversationHistory.push({ role: 'assistant', content: '❌ 请求异常：' + err.message });
+        const errorTimestamp = Date.now();
+        addMessageToChat('assistant', '❌ 请求异常：' + err.message, false, errorTimestamp);
+        conversationHistory.push({ role: 'assistant', content: '❌ 请求异常：' + err.message, timestamp: errorTimestamp });
         saveChatSession();
         updateContextLength();
       }
@@ -1779,7 +1783,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // 添加消息到聊天界面，支持Markdown
-  function addMessageToChat(role, content, useMarkdown) {
+  function addMessageToChat(role, content, useMarkdown, timestamp) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
     const messageContent = document.createElement('div');
@@ -1796,7 +1800,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const messageTime = document.createElement('div');
     messageTime.className = 'message-time';
-    messageTime.textContent = new Date().toLocaleTimeString();
+    messageTime.textContent = new Date(timestamp).toLocaleTimeString();
     messageDiv.appendChild(messageContent);
     messageDiv.appendChild(messageTime);
     chatMessages.appendChild(messageDiv);
@@ -1822,7 +1826,14 @@ document.addEventListener('DOMContentLoaded', function() {
   if (window.marked) {
     window.marked.setOptions({
       gfm: true,
-      breaks: true
+      breaks: true,
+      pedantic: false,
+      sanitize: false,
+      smartLists: true,
+      smartypants: false,
+      highlight: function(code, lang) {
+        return code;
+      }
     });
   }
 

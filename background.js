@@ -350,7 +350,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       const controller = new AbortController();
       const timeout = setTimeout(() => {
         controller.abort();
-      }, 30000); // 30秒超时
+      }, 300000); // 5分钟超时
 
       // 处理 API 请求
       fetch(request.apiUrl, {

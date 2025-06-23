@@ -1433,6 +1433,44 @@ document.addEventListener('DOMContentLoaded', function() {
     .ai-search-result[data-error-state="true"] .ai-continue-ask-area {
       display: none;
     }
+
+    .ai-search-result-content pre {
+      white-space: pre;
+      word-break: break-all;
+      overflow-x: auto;
+      min-width: 100px;
+      max-width: 100%;
+      background-color: #f5f5f5;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      font-size: 13px;
+      tab-size: 2;
+      -moz-tab-size: 2;
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 8px 0;
+    }
+
+    .ai-search-result-content pre code {
+      background: none;
+      padding: 0;
+      margin: 0;
+      border-radius: 0;
+      border: none;
+      white-space: pre;
+    }
+
+    .ai-search-result-content code {
+      display: inline-block;
+      padding: 2px 4px;
+      font-size: 13px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      background-color: #f5f5f5;
+      border-radius: 3px;
+      white-space: pre;
+    }
   `;
   document.head.appendChild(style);
 });
