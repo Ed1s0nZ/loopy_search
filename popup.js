@@ -88,6 +88,10 @@ style.textContent = `
     -ms-overflow-style: none;  /* IE and Edge */
     margin: 0 40px;  /* 为按钮留出空间 */
     padding: 0 10px;
+    user-select: none;  /* 防止文字被选中 */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
   }
 
   .nav-tabs::-webkit-scrollbar {
@@ -98,25 +102,26 @@ style.textContent = `
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     border: none;
-    border-radius: 16px;
-    background: #f0f7ff;
-    color: #1a73e8;
+    border-radius: 4px;
+    background: transparent;
+    color: #666;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 16px;
     transition: all 0.2s;
     z-index: 1;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    opacity: 0.6;
   }
 
   .scroll-button:hover {
-    background: #e8f1ff;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.05);
+    color: #1a73e8;
+    opacity: 1;
   }
 
   .scroll-button:active {
@@ -124,17 +129,17 @@ style.textContent = `
   }
 
   .scroll-button.disabled {
-    opacity: 0.5;
+    opacity: 0.2;
     cursor: not-allowed;
     pointer-events: none;
   }
 
   .scroll-left {
-    left: 4px;
+    left: 0px;
   }
 
   .scroll-right {
-    right: 4px;
+    right: 0px;
   }
 `;
 
@@ -1648,6 +1653,40 @@ document.addEventListener('DOMContentLoaded', function() {
     if (allTabContents.length > 0) {
       allTabContents[0].parentNode.insertBefore(navContainer, allTabContents[0]);
     }
+
+    // 添加鼠标滑动功能
+    let isMouseDown = false;
+    let startX;
+    let scrollLeft;
+
+    navTabs.addEventListener('mousedown', (e) => {
+      isMouseDown = true;
+      navTabs.style.cursor = 'grabbing';
+      startX = e.pageX - navTabs.offsetLeft;
+      scrollLeft = navTabs.scrollLeft;
+    });
+
+    navTabs.addEventListener('mouseleave', () => {
+      isMouseDown = false;
+      navTabs.style.cursor = 'grab';
+    });
+
+    navTabs.addEventListener('mouseup', () => {
+      isMouseDown = false;
+      navTabs.style.cursor = 'grab';
+    });
+
+    navTabs.addEventListener('mousemove', (e) => {
+      if (!isMouseDown) return;
+      e.preventDefault();
+      const x = e.pageX - navTabs.offsetLeft;
+      const walk = (x - startX) * 1.5; // 滚动速度系数
+      navTabs.scrollLeft = scrollLeft - walk;
+      updateScrollButtons();
+    });
+
+    // 初始化鼠标样式
+    navTabs.style.cursor = 'grab';
 
     // 滚动处理函数
     function updateScrollButtons() {
