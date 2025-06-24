@@ -326,6 +326,9 @@
       font-size: 12px;
       opacity: 0;
       transition: opacity 0.2s;
+      width: 40px;
+      text-align: center;
+      white-space: nowrap;
     }
     .memo-item:hover .memo-delete-btn {
       opacity: 1;
@@ -884,6 +887,31 @@
         rgba(249, 249, 249, 0) 100%
       );
       opacity: 1;
+    }
+
+    /* 添加复制按钮样式 */
+    .memo-copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 56px;
+      padding: 4px 8px;
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      width: 40px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .memo-item:hover .memo-copy-btn {
+      opacity: 1;
+    }
+    .memo-copy-btn:hover {
+      background-color: #1557b0;
     }
   </style>
 </head>

@@ -545,12 +545,22 @@ document.addEventListener('DOMContentLoaded', function() {
           const memoTime = document.createElement('div');
           memoTime.className = 'memo-time';
           memoTime.textContent = new Date(memo.timestamp).toLocaleString();
+          
+          // 添加复制按钮
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'memo-copy-btn';
+          copyBtn.title = '复制';
+          copyBtn.textContent = '复制';
+          copyBtn.dataset.text = memo.text;
+          
           const deleteBtn = document.createElement('button');
           deleteBtn.className = 'memo-delete-btn';
           deleteBtn.textContent = '删除';
           deleteBtn.dataset.id = memo.id;
+          
           memoItem.appendChild(memoText);
           memoItem.appendChild(memoTime);
+          memoItem.appendChild(copyBtn);
           memoItem.appendChild(deleteBtn);
           memoList.appendChild(memoItem);
         });
@@ -560,6 +570,35 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.addEventListener('click', function() {
             const id = parseInt(this.dataset.id);
             deleteMemo(id);
+          });
+        });
+        
+        // 添加复制事件监听
+        document.querySelectorAll('.memo-copy-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const text = this.dataset.text;
+            navigator.clipboard.writeText(text).then(() => {
+              // 显示复制成功提示
+              const toast = document.createElement('div');
+              toast.textContent = '复制成功';
+              toast.style.position = 'fixed';
+              toast.style.bottom = '20px';
+              toast.style.left = '50%';
+              toast.style.transform = 'translateX(-50%)';
+              toast.style.padding = '8px 16px';
+              toast.style.background = 'rgba(0, 0, 0, 0.7)';
+              toast.style.color = 'white';
+              toast.style.borderRadius = '4px';
+              toast.style.zIndex = '9999';
+              document.body.appendChild(toast);
+              
+              // 2秒后移除提示
+              setTimeout(() => {
+                document.body.removeChild(toast);
+              }, 2000);
+            }).catch(err => {
+              console.error('复制失败:', err);
+            });
           });
         });
       });
