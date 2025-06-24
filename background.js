@@ -9,6 +9,106 @@ let networkStatus = { // 网络状态监控
   lastError: null
 };
 
+// 应用代理设置
+function applyProxySettings(settings) {
+  // 如果未启用代理，设置为直接连接
+  if (!settings || !settings.proxyEnabled) {
+    chrome.proxy.settings.set({
+      value: { mode: 'direct' },
+      scope: 'regular'
+    }, function() {
+      if (chrome.runtime.lastError) {
+        console.error('禁用代理失败:', chrome.runtime.lastError);
+      } else {
+        console.log('已禁用代理，设置为直接连接');
+      }
+    });
+    return;
+  }
+
+  // 构建代理配置
+  let config = {};
+
+  try {
+    switch (settings.proxyMode) {
+      case 'direct':
+        config = { mode: 'direct' };
+        break;
+        
+      case 'auto_detect':
+        config = { mode: 'auto_detect' };
+        break;
+        
+      case 'pac_script':
+        config = {
+          mode: 'pac_script',
+          pacScript: {
+            url: settings.pacScriptUrl,
+            mandatory: true
+          }
+        };
+        break;
+        
+      case 'fixed_servers':
+        // 处理绕过列表
+        const bypassList = settings.bypassList
+          .split(/[,\n]/)
+          .map(item => item.trim())
+          .filter(item => item);
+        
+        // 构建代理服务器配置
+        let singleProxy = {
+          scheme: settings.proxyScheme,
+          host: settings.proxyHost,
+          port: parseInt(settings.proxyPort, 10)
+        };
+        
+        // 如果需要认证，添加认证信息
+        if (settings.proxyAuthRequired && settings.proxyUsername && settings.proxyPassword) {
+          // 注意：只有SOCKS4/5代理支持在配置中直接设置认证信息
+          if (settings.proxyScheme === 'socks4' || settings.proxyScheme === 'socks5') {
+            singleProxy.username = settings.proxyUsername;
+            singleProxy.password = settings.proxyPassword;
+          } else {
+            console.log('注意: HTTP/HTTPS代理的认证需要在浏览器弹出的认证窗口中手动输入');
+          }
+        }
+        
+        config = {
+          mode: 'fixed_servers',
+          rules: {
+            singleProxy: singleProxy,
+            bypassList: bypassList
+          }
+        };
+        break;
+        
+      case 'system':
+        config = { mode: 'system' };
+        break;
+    }
+
+    // 应用代理设置
+    chrome.proxy.settings.set({
+      value: config,
+      scope: 'regular'
+    }, function() {
+      if (chrome.runtime.lastError) {
+        console.error('代理设置应用失败:', chrome.runtime.lastError);
+      } else {
+        console.log('代理设置已应用:', config);
+      }
+    });
+    
+    // 输出当前活跃的代理设置，用于调试
+    chrome.proxy.settings.get({}, function(details) {
+      console.log('当前活跃的代理设置:', details);
+    });
+  } catch (error) {
+    console.error('应用代理设置时发生错误:', error);
+  }
+}
+
 // 更新上下文菜单
 function updateContextMenus() {
   // 先移除所有现有的菜单项
@@ -103,6 +203,22 @@ chrome.runtime.onInstalled.addListener(function() {
     historyRetentionDays = data.historyRetention;
   });
   
+  // 加载并应用代理设置
+  chrome.storage.local.get({
+    proxyEnabled: false,
+    proxyMode: 'direct',
+    pacScriptUrl: '',
+    proxyScheme: 'http',
+    proxyHost: '',
+    proxyPort: 8080,
+    proxyAuthRequired: false,
+    proxyUsername: '',
+    proxyPassword: '',
+    bypassList: 'localhost, 127.0.0.1, <local>'
+  }, function(data) {
+    applyProxySettings(data);
+  });
+  
   // 打开设置页面
   chrome.tabs.create({
     url: 'popup.html'
@@ -115,7 +231,7 @@ chrome.runtime.onInstalled.addListener(function() {
 
 // 监听存储变化，更新菜单
 chrome.storage.onChanged.addListener(function(changes, namespace) {
-  if (namespace === 'sync') {
+  if (namespace === 'local') {
     if (changes.promptTemplates || changes.customCategories) {
       updateContextMenus();
     }
@@ -125,6 +241,46 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
       console.debug('历史记录保留天数已更新:', historyRetentionDays);
       // 立即执行一次清理
       cleanupHistory();
+    }
+    
+    // 监听最大对话历史数量的变化
+    if (changes.maxChatHistory) {
+      console.debug('最大对话历史数量已更新:', changes.maxChatHistory.newValue);
+      // 立即执行一次清理
+      cleanupHistory();
+    }
+    
+    // 监听代理设置变化
+    const proxySettings = [
+      'proxyEnabled', 'proxyMode', 'pacScriptUrl', 'proxyScheme',
+      'proxyHost', 'proxyPort', 'proxyAuthRequired',
+      'proxyUsername', 'proxyPassword', 'bypassList'
+    ];
+    
+    let proxyChanged = false;
+    for (const key of proxySettings) {
+      if (changes[key]) {
+        proxyChanged = true;
+        break;
+      }
+    }
+    
+    if (proxyChanged) {
+      console.log('代理设置已更改，重新应用代理配置');
+      chrome.storage.local.get({
+        proxyEnabled: false,
+        proxyMode: 'direct',
+        pacScriptUrl: '',
+        proxyScheme: 'http',
+        proxyHost: '',
+        proxyPort: 8080,
+        proxyAuthRequired: false,
+        proxyUsername: '',
+        proxyPassword: '',
+        bypassList: 'localhost, 127.0.0.1, <local>'
+      }, function(data) {
+        applyProxySettings(data);
+      });
     }
   }
 });
@@ -272,7 +428,10 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
 function cleanupHistory() {
   console.debug('开始清理历史记录, 保留天数:', historyRetentionDays);
   
-  chrome.storage.local.get('searchHistory', function(data) {
+  chrome.storage.local.get({
+    searchHistory: [],
+    maxChatHistory: 20 // 默认最大对话历史数量
+  }, function(data) {
     const history = data.searchHistory || [];
     console.debug('当前历史记录数量:', history.length);
     
@@ -288,7 +447,7 @@ function cleanupHistory() {
     console.debug('保留天数设置:', historyRetentionDays);
     
     // 过滤掉过期的记录
-    const updatedHistory = history.filter(item => {
+    let updatedHistory = history.filter(item => {
       const keep = item.timestamp > cutoffTime;
       if (!keep) {
         console.debug('将删除过期记录:', {
@@ -298,6 +457,30 @@ function cleanupHistory() {
       }
       return keep;
     });
+    
+    // 按类型分组限制数量
+    const chatHistory = updatedHistory.filter(item => item.type === 'chat');
+    const selectHistory = updatedHistory.filter(item => item.type === 'select');
+    const otherHistory = updatedHistory.filter(item => item.type !== 'chat' && item.type !== 'select');
+    
+    // 如果聊天历史超过限制，只保留最新的maxChatHistory条
+    if (chatHistory.length > data.maxChatHistory) {
+      console.debug(`聊天历史超过限制(${data.maxChatHistory})，将清理旧记录`);
+      // 按时间排序，保留最新的
+      chatHistory.sort((a, b) => b.timestamp - a.timestamp);
+      chatHistory.splice(data.maxChatHistory);
+    }
+    
+    // 如果划词历史超过限制，只保留最新的maxChatHistory条
+    if (selectHistory.length > data.maxChatHistory) {
+      console.debug(`划词历史超过限制(${data.maxChatHistory})，将清理旧记录`);
+      // 按时间排序，保留最新的
+      selectHistory.sort((a, b) => b.timestamp - a.timestamp);
+      selectHistory.splice(data.maxChatHistory);
+    }
+    
+    // 合并历史记录
+    updatedHistory = [...chatHistory, ...selectHistory, ...otherHistory];
     
     // 如果有记录被删除，则更新存储
     if (updatedHistory.length < history.length) {
@@ -496,7 +679,10 @@ function saveSearchHistory(data) {
     queryLength: data.query.length
   });
   
-  chrome.storage.local.get({ saveHistory: true }, function(config) {
+  chrome.storage.local.get({ 
+    saveHistory: true,
+    maxChatHistory: 20 // 默认最大对话历史数量
+  }, function(config) {
     // 如果用户禁用了历史记录，则不保存
     if (!config.saveHistory) {
       console.debug('历史记录功能已禁用，跳过保存');
@@ -527,6 +713,26 @@ function saveSearchHistory(data) {
       
       // 添加新记录到开头
       history.unshift(newRecord);
+      
+      // 按类型分组限制数量
+      const chatHistory = history.filter(item => item.type === 'chat');
+      const selectHistory = history.filter(item => item.type === 'select');
+      const otherHistory = history.filter(item => item.type !== 'chat' && item.type !== 'select');
+      
+      // 如果聊天历史超过限制，只保留最新的maxChatHistory条
+      if (chatHistory.length > config.maxChatHistory) {
+        console.debug(`聊天历史超过限制(${config.maxChatHistory})，将清理旧记录`);
+        chatHistory.splice(config.maxChatHistory);
+      }
+      
+      // 如果划词历史超过限制，只保留最新的maxChatHistory条
+      if (selectHistory.length > config.maxChatHistory) {
+        console.debug(`划词历史超过限制(${config.maxChatHistory})，将清理旧记录`);
+        selectHistory.splice(config.maxChatHistory);
+      }
+      
+      // 合并历史记录
+      history = [...chatHistory, ...selectHistory, ...otherHistory];
       
       // 如果超过最大数量限制，删除旧记录
       if (history.length > maxHistoryItems) {

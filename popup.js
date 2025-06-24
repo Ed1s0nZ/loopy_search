@@ -1,5 +1,5 @@
 // 全局函数定义
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', duration = 3000) {
   // 清除所有现有的 toast
   const existingContainer = document.querySelector('.toast-container');
   if (existingContainer) {
@@ -24,13 +24,13 @@ function showToast(message, type = 'success') {
     toast.classList.add('show');
   });
   
-  // 3秒后移除
+  // 设定时间后移除
   setTimeout(() => {
     toast.classList.remove('show');
     setTimeout(() => {
       toastContainer.remove();
     }, 300);
-  }, 3000);
+  }, duration);
 }
 
 // 添加必要的样式
@@ -307,6 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const useMarkdownCheckbox = document.getElementById('useMarkdown');
   const saveHistoryCheckbox = document.getElementById('saveHistory');
   const historyRetentionSelect = document.getElementById('historyRetention');
+  const maxChatHistoryInput = document.getElementById('maxChatHistory');
   const saveBtn = document.getElementById('saveBtn');
   const statusDiv = document.getElementById('status');
   const togglePasswordBtn = document.getElementById('togglePassword');
@@ -323,7 +324,8 @@ document.addEventListener('DOMContentLoaded', function() {
     prompt: '请解释以下内容:',
     useMarkdown: true,
     saveHistory: true,
-    historyRetention: 7
+    historyRetention: 7,
+    maxChatHistory: 20
   }, function(items) {
     chrome.storage.local.get({ apiKey: '' }, function(localItems) {
       apiUrlInput.value = items.apiUrl;
@@ -392,6 +394,12 @@ document.addEventListener('DOMContentLoaded', function() {
   saveBtn.addEventListener('click', function() {
     const model = modelSelect.value;
     const actualModel = model === 'custom' ? customModelInput.value : model;
+    
+    // 获取最大对话历史数量
+    const maxChatHistoryInput = document.getElementById('maxChatHistory');
+    const maxChatHistory = maxChatHistoryInput ? 
+      parseInt(maxChatHistoryInput.value) || 20 : 20;
+    
     // 先保存apiKey到local
     chrome.storage.local.set({ apiKey: apiKeyInput.value }, function() {
       // 其他设置依然用local
@@ -403,7 +411,8 @@ document.addEventListener('DOMContentLoaded', function() {
         actualModel: actualModel,
         useMarkdown: useMarkdownCheckbox.checked,
         saveHistory: saveHistoryCheckbox.checked,
-        historyRetention: parseInt(historyRetentionSelect.value)
+        historyRetention: parseInt(historyRetentionSelect.value),
+        maxChatHistory: maxChatHistory
       }, function() {
         // 显示保存成功的提示
         statusDiv.style.display = 'block';
@@ -674,7 +683,158 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 初始化设置功能
   function initializeSettings() {
-    // ... 设置相关代码 ...
+    // 获取DOM元素
+    const apiUrlInput = document.getElementById('apiUrl');
+    const apiKeyInput = document.getElementById('apiKey');
+    const modelSelect = document.getElementById('model');
+    const customModelContainer = document.getElementById('customModelContainer');
+    const customModelInput = document.getElementById('customModel');
+    const promptInput = document.getElementById('prompt');
+    const useMarkdownCheckbox = document.getElementById('useMarkdown');
+    const saveHistoryCheckbox = document.getElementById('saveHistory');
+    const historyRetentionSelect = document.getElementById('historyRetention');
+    const maxChatHistoryInput = document.getElementById('maxChatHistory');
+    const saveBtn = document.getElementById('saveBtn');
+    const statusDiv = document.getElementById('status');
+    const togglePasswordBtn = document.getElementById('togglePassword');
+    
+    // 如果没有找到最大对话历史设置的输入框，则创建一个
+    if (!maxChatHistoryInput && document.getElementById('settings')) {
+      // 查找历史保留设置的位置
+      const historyRetentionGroup = historyRetentionSelect ? historyRetentionSelect.closest('.form-group') : null;
+      
+      if (historyRetentionGroup) {
+        // 创建新的设置组
+        const formGroup = document.createElement('div');
+        formGroup.className = 'form-group';
+        
+        // 创建标签
+        const label = document.createElement('label');
+        label.setAttribute('for', 'maxChatHistory');
+        label.textContent = '最大对话历史数量';
+        
+        // 创建输入框
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = 'maxChatHistory';
+        input.min = '1';
+        input.max = '100';
+        input.className = 'form-input';
+        
+        // 创建描述
+        const description = document.createElement('div');
+        description.className = 'setting-description';
+        description.textContent = '设置保存的最大对话数量，超过此数量将自动删除最旧的对话';
+        
+        // 添加到表单组
+        formGroup.appendChild(label);
+        formGroup.appendChild(input);
+        formGroup.appendChild(description);
+        
+        // 插入到历史保留设置之后
+        historyRetentionGroup.parentNode.insertBefore(formGroup, historyRetentionGroup.nextSibling);
+      }
+    }
+    
+    // 加载设置
+    chrome.storage.local.get({
+      apiUrl: 'https://api.openai.com/v1/chat/completions',
+      model: 'gpt-3.5-turbo',
+      customModel: '',
+      prompt: '请解释以下内容:',
+      useMarkdown: true,
+      saveHistory: true,
+      historyRetention: 30,
+      maxChatHistory: 20
+    }, function(items) {
+      if (apiUrlInput) apiUrlInput.value = items.apiUrl;
+      if (modelSelect) modelSelect.value = items.model;
+      if (customModelInput) customModelInput.value = items.customModel;
+      if (promptInput) promptInput.value = items.prompt;
+      if (useMarkdownCheckbox) useMarkdownCheckbox.checked = items.useMarkdown;
+      if (saveHistoryCheckbox) saveHistoryCheckbox.checked = items.saveHistory;
+      if (historyRetentionSelect) historyRetentionSelect.value = items.historyRetention;
+      
+      // 设置最大对话历史数量
+      const maxChatHistoryInput = document.getElementById('maxChatHistory');
+      if (maxChatHistoryInput) maxChatHistoryInput.value = items.maxChatHistory;
+      
+      // 显示/隐藏自定义模型输入框
+      if (customModelContainer && modelSelect) {
+        customModelContainer.style.display = modelSelect.value === 'custom' ? 'block' : 'none';
+      }
+    });
+
+    // 获取API密钥
+    chrome.storage.local.get({ apiKey: '' }, function(items) {
+      if (apiKeyInput) apiKeyInput.value = items.apiKey;
+    });
+    
+    // 切换模型时显示/隐藏自定义模型输入框
+    if (modelSelect) {
+      modelSelect.addEventListener('change', function() {
+        if (customModelContainer) {
+          customModelContainer.style.display = this.value === 'custom' ? 'block' : 'none';
+        }
+      });
+    }
+    
+    // 切换密码可见性
+    if (togglePasswordBtn && apiKeyInput) {
+      togglePasswordBtn.addEventListener('click', function() {
+        const type = apiKeyInput.type === 'password' ? 'text' : 'password';
+        apiKeyInput.type = type;
+        togglePasswordBtn.textContent = type === 'password' ? '显示' : '隐藏';
+      });
+    }
+    
+    // 保存设置
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function() {
+        const model = modelSelect ? modelSelect.value : 'gpt-3.5-turbo';
+        const actualModel = model === 'custom' && customModelInput ? customModelInput.value : model;
+        
+        // 获取最大对话历史数量
+        const maxChatHistoryInput = document.getElementById('maxChatHistory');
+        const maxChatHistory = maxChatHistoryInput ? 
+          parseInt(maxChatHistoryInput.value) || 20 : 20;
+        
+        // 先保存apiKey到local
+        chrome.storage.local.set({ apiKey: apiKeyInput ? apiKeyInput.value : '' }, function() {
+          // 其他设置依然用local
+          chrome.storage.local.set({
+            apiUrl: apiUrlInput ? apiUrlInput.value : 'https://api.openai.com/v1/chat/completions',
+            model: model,
+            customModel: customModelInput ? customModelInput.value : '',
+            prompt: promptInput ? promptInput.value : '请解释以下内容:',
+            actualModel: actualModel,
+            useMarkdown: useMarkdownCheckbox ? useMarkdownCheckbox.checked : true,
+            saveHistory: saveHistoryCheckbox ? saveHistoryCheckbox.checked : true,
+            historyRetention: historyRetentionSelect ? parseInt(historyRetentionSelect.value) : 30,
+            maxChatHistory: maxChatHistory
+          }, function() {
+            // 显示保存成功的提示
+            if (statusDiv) {
+              statusDiv.style.display = 'block';
+              // 1秒后隐藏保存成功提示
+              setTimeout(function() {
+                statusDiv.style.display = 'none';
+              }, 1000);
+            }
+            
+            // 如果修改了历史记录保留时间，立即执行一次清理
+            if (historyRetentionSelect) {
+              chrome.runtime.sendMessage({
+                action: 'updateHistoryRetention',
+                days: parseInt(historyRetentionSelect.value)
+              }, function() {
+                console.debug('已更新历史记录保留天数，并触发清理');
+              });
+            }
+          });
+        });
+      });
+    }
   }
 
   // 初始化历史记录功能
@@ -1774,6 +1934,938 @@ document.addEventListener('DOMContentLoaded', function() {
     if (firstTab) {
       firstTab.click();
     }
+
+    // 初始化聊天功能
+    initializeChat();
+  }
+
+  // 初始化聊天功能
+  // 初始化编码解码功能
+  function initializeCodec() {
+    const codecType = document.getElementById('codecType');
+    const codecInput = document.getElementById('codecInput');
+    const codecOutput = document.getElementById('codecOutput');
+    const encodeBtn = document.getElementById('encodeBtn');
+    const decodeBtn = document.getElementById('decodeBtn');
+    const copyCodecOutputBtn = document.getElementById('copyCodecOutputBtn');
+    
+    if (!codecType || !codecInput || !codecOutput || !encodeBtn || !decodeBtn) {
+      console.error('编码解码组件未找到');
+      return;
+    }
+    
+    // 编码按钮点击事件
+    encodeBtn.addEventListener('click', function() {
+      const type = codecType.value;
+      const input = codecInput.value;
+      
+      if (!input) {
+        showToast('请输入需要编码的内容', 'error');
+        return;
+      }
+      
+      try {
+        let result = '';
+        
+        switch (type) {
+          case 'unicode':
+            result = input.split('').map(char => {
+              const code = char.charCodeAt(0);
+              return '\\u' + ('0000' + code.toString(16)).slice(-4);
+            }).join('');
+            break;
+            
+          case 'base64':
+            result = btoa(unescape(encodeURIComponent(input)));
+            break;
+            
+          case 'url':
+            result = encodeURI(input);
+            break;
+            
+          case 'uricomponent':
+            result = encodeURIComponent(input);
+            break;
+            
+          case 'htmlentity':
+            result = input.replace(/[\u00A0-\u9999<>\&]/g, function(i) {
+              return '&#' + i.charCodeAt(0) + ';';
+            });
+            break;
+            
+          case 'hex':
+            result = Array.from(input).map(c => 
+              c.charCodeAt(0).toString(16).padStart(2, '0')
+            ).join('');
+            break;
+            
+          case 'ascii':
+            result = Array.from(input).map(c => c.charCodeAt(0)).join(' ');
+            break;
+            
+          case 'timestamp':
+            try {
+              const date = new Date(input);
+              if (isNaN(date.getTime())) {
+                throw new Error('无效的日期格式');
+              }
+              result = Math.floor(date.getTime() / 1000).toString();
+            } catch (e) {
+              throw new Error('无效的日期格式');
+            }
+            break;
+        }
+        
+        codecOutput.value = result;
+      } catch (error) {
+        showToast('编码失败: ' + error.message, 'error');
+      }
+    });
+    
+    // 解码按钮点击事件
+    decodeBtn.addEventListener('click', function() {
+      const type = codecType.value;
+      const input = codecInput.value;
+      
+      if (!input) {
+        showToast('请输入需要解码的内容', 'error');
+        return;
+      }
+      
+      try {
+        let result = '';
+        
+        switch (type) {
+          case 'unicode':
+            result = input.replace(/\\u[\dA-F]{4}/gi, function(match) {
+              return String.fromCharCode(parseInt(match.replace(/\\u/g, ''), 16));
+            });
+            break;
+            
+          case 'base64':
+            result = decodeURIComponent(escape(atob(input)));
+            break;
+            
+          case 'url':
+            result = decodeURI(input);
+            break;
+            
+          case 'uricomponent':
+            result = decodeURIComponent(input);
+            break;
+            
+          case 'htmlentity':
+            const textarea = document.createElement('textarea');
+            textarea.innerHTML = input;
+            result = textarea.value;
+            break;
+            
+          case 'hex':
+            result = input.match(/.{1,2}/g)
+              .map(byte => String.fromCharCode(parseInt(byte, 16)))
+              .join('');
+            break;
+            
+          case 'ascii':
+            result = input.split(' ')
+              .map(code => String.fromCharCode(parseInt(code, 10)))
+              .join('');
+            break;
+            
+          case 'timestamp':
+            const timestamp = parseInt(input, 10);
+            if (isNaN(timestamp)) {
+              throw new Error('无效的时间戳');
+            }
+            const date = new Date(timestamp * 1000);
+            result = date.toLocaleString();
+            break;
+        }
+        
+        codecOutput.value = result;
+      } catch (error) {
+        showToast('解码失败: ' + error.message, 'error');
+      }
+    });
+    
+    // 复制结果按钮点击事件
+    if (copyCodecOutputBtn) {
+      copyCodecOutputBtn.addEventListener('click', function() {
+        const output = codecOutput.value;
+        if (!output) {
+          showToast('没有可复制的内容', 'error');
+          return;
+        }
+        
+        navigator.clipboard.writeText(output).then(function() {
+          showToast('已复制到剪贴板', 'success');
+        }).catch(function(err) {
+          showToast('复制失败: ' + err, 'error');
+        });
+      });
+    }
+  }
+
+  function initializeChat() {
+    const chatInput = document.querySelector('.chat-input');
+    const sendButton = document.querySelector('.send-button');
+    const chatMessages = document.querySelector('.chat-messages');
+    const newChatBtn = document.querySelector('.new-chat-btn');
+    const contextLength = document.querySelector('.context-length');
+    
+    if (!chatInput || !sendButton || !chatMessages) {
+      console.error('聊天组件未找到');
+      return;
+    }
+    
+    let messages = [];
+    let currentChatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    let chatList = [];
+    
+    // 加载所有对话列表
+    loadChatList();
+    
+    // 加载上一次的对话
+    loadLastChat();
+    
+    // 发送消息函数
+    function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text) return;
+      
+      // 生成当前时间戳
+      const currentTime = Date.now();
+      
+      // 添加用户消息到界面
+      addMessage(text, 'user', false, currentTime);
+      
+      // 清空输入框
+      chatInput.value = '';
+      
+      // 重置输入框高度
+      chatInput.style.height = '44px';
+      
+      // 禁用发送按钮
+      sendButton.disabled = true;
+      
+      // 显示AI正在输入的指示器
+      showTypingIndicator();
+      
+      // 添加用户消息到消息列表
+      messages.push({ 
+        role: 'user', 
+        content: text,
+        timestamp: currentTime
+      });
+      
+      // 保存当前对话
+      saveCurrentChat();
+      
+      // 更新当前对话长度
+      updateContextLength();
+      
+      // 调用AI搜索功能
+      chrome.storage.local.get({
+        apiUrl: 'https://api.openai.com/v1/chat/completions',
+        apiKey: '',
+        model: 'gpt-3.5-turbo',
+        customModel: '',
+        actualModel: 'gpt-3.5-turbo'
+      }, function(items) {
+        if (!items.apiKey) {
+          hideTypingIndicator();
+          const errorTime = Date.now();
+          addMessage('请先在设置中配置API密钥', 'assistant', true, errorTime);
+          sendButton.disabled = false;
+          return;
+        }
+        
+        // 构建消息列表
+        const apiMessages = [...messages];
+        
+        // 添加系统消息
+        apiMessages.unshift({
+          role: 'system',
+          content: '你是一个有用的AI助手，提供准确、有帮助的回答。'
+        });
+        
+        // 发送API请求
+        chrome.runtime.sendMessage({
+          action: 'fetchAIResponse',
+          apiUrl: items.apiUrl,
+          apiKey: items.apiKey,
+          data: {
+            model: items.actualModel,
+            messages: apiMessages,
+            temperature: 0.7
+          }
+        }, response => {
+          hideTypingIndicator();
+          sendButton.disabled = false;
+          
+          if (response && response.success) {
+            const content = response.data.choices && response.data.choices[0] && 
+                           response.data.choices[0].message ? 
+                           response.data.choices[0].message.content : '';
+            
+            if (content) {
+              // 生成AI回复的时间戳
+              const responseTime = Date.now();
+              
+              // 添加AI回复到界面
+              addMessage(content, 'assistant', false, responseTime);
+              
+              // 添加AI回复到消息列表
+              messages.push({ 
+                role: 'assistant', 
+                content: content,
+                timestamp: responseTime
+              });
+              
+              // 保存当前对话
+              saveCurrentChat();
+              
+              // 更新当前对话长度
+              updateContextLength();
+              
+              // 保存到历史记录
+              saveToHistory(text, content);
+            } else {
+              const errorTime = Date.now();
+              addMessage('API返回内容为空', 'assistant', true, errorTime);
+            }
+          } else {
+            const errorTime = Date.now();
+            const errorMsg = response && response.error ? response.error : '请求失败';
+            addMessage(`错误: ${errorMsg}`, 'assistant', true, errorTime);
+          }
+        });
+      });
+    }
+    
+    // 加载对话列表
+    function loadChatList() {
+      chrome.storage.local.get({ chatList: [] }, function(data) {
+        if (chrome.runtime.lastError) {
+          console.error('加载对话列表失败:', chrome.runtime.lastError);
+          showToast('加载对话列表失败', 'error');
+          chatList = [];
+        } else {
+          chatList = data.chatList || [];
+          console.log('已加载对话列表，共', chatList.length, '个对话');
+        }
+        
+        // 如果页面中有对话列表容器，就更新UI
+        updateChatListUI();
+      });
+    }
+    
+    // 更新对话列表UI
+    function updateChatListUI() {
+      // 获取下拉菜单
+      const dropdown = document.querySelector('.chat-dropdown');
+      
+      if (!dropdown) {
+        // 查找历史对话按钮
+        const historyBtn = document.querySelector('.history-chat-btn');
+        
+        // 如果找不到按钮，可能是旧版本的HTML
+        if (!historyBtn) {
+          console.error('找不到历史对话按钮');
+          return;
+        }
+        
+        // 创建下拉菜单容器
+        const dropdown = document.createElement('div');
+        dropdown.className = 'chat-dropdown';
+        dropdown.style.display = 'none';
+        
+        // 添加按钮点击事件
+        historyBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+          
+          // 点击其他地方关闭下拉菜单
+          if (dropdown.style.display === 'block') {
+            const closeDropdown = function() {
+              dropdown.style.display = 'none';
+              document.removeEventListener('click', closeDropdown);
+            };
+            setTimeout(() => {
+              document.addEventListener('click', closeDropdown);
+            }, 0);
+          }
+        });
+        
+        // 添加到页面
+        const container = document.querySelector('.chat-container');
+        if (container) {
+          container.appendChild(dropdown);
+        }
+        
+        // 添加下拉菜单样式
+        const style = document.createElement('style');
+        style.textContent = `
+          .chat-history-btn {
+            background: transparent;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: all 0.2s;
+          }
+          
+          .chat-history-btn:hover {
+            background: #f5f5f5;
+          }
+          
+          .chat-dropdown {
+            position: absolute;
+            top: 55px;
+            right: 15px;
+            width: 250px;
+            max-height: 300px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+          }
+          
+          .chat-dropdown-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          
+          .chat-dropdown-item:hover {
+            background: #f5f5f5;
+          }
+          
+          .chat-dropdown-item.active {
+            background: #e8f0fe;
+            border-left: 3px solid #1a73e8;
+          }
+          
+          .chat-item-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 13px;
+          }
+          
+          .chat-item-date {
+            font-size: 11px;
+            color: #999;
+            margin-left: 8px;
+          }
+          
+          .chat-item-delete {
+            padding: 2px 6px;
+            background: transparent;
+            color: #dc3545;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+          }
+          
+          .chat-dropdown-item:hover .chat-item-delete {
+            opacity: 1;
+          }
+          
+          .chat-dropdown-empty {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      
+      // 更新下拉菜单内容
+      dropdown.innerHTML = '';
+      
+      if (chatList.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'chat-dropdown-empty';
+        emptyMsg.textContent = '暂无历史对话';
+        dropdown.appendChild(emptyMsg);
+        return;
+      }
+      
+      // 对列表按最后更新时间排序（最新的在前）
+      chatList.sort((a, b) => b.lastUpdated - a.lastUpdated);
+      
+      // 填充下拉菜单
+      chatList.forEach(chat => {
+        const item = document.createElement('div');
+        item.className = 'chat-dropdown-item';
+        if (chat.id === currentChatId) {
+          item.classList.add('active');
+        }
+        
+        // 获取对话标题（使用第一条用户消息，或第一条消息）
+        let title = '新对话';
+        if (chat.messages && chat.messages.length > 0) {
+          const userMessage = chat.messages.find(m => m.role === 'user');
+          if (userMessage) {
+            title = userMessage.content;
+          } else {
+            title = chat.messages[0].content;
+          }
+          
+          // 清理标题文本（移除多余空白和换行符）
+          title = title.replace(/\s+/g, ' ').trim();
+          
+          // 截断长标题，保证不会溢出
+          if (title.length > 35) {
+            title = title.substring(0, 35) + '...';
+          }
+        }
+        
+        // 格式化日期，显示详细时间
+        const chatDate = new Date(chat.lastUpdated);
+        const today = new Date();
+        
+        // 重置时间部分，只比较日期
+        const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const yesterdayDate = new Date(todayDate);
+        yesterdayDate.setDate(todayDate.getDate() - 1);
+        const chatDateOnly = new Date(chatDate.getFullYear(), chatDate.getMonth(), chatDate.getDate());
+        
+        let dateText = '';
+        
+        // 如果是今天，只显示时间
+        if (chatDateOnly.getTime() === todayDate.getTime()) {
+          dateText = '今天 ' + chatDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        } 
+        // 如果是昨天，显示"昨天"和时间
+        else if (chatDateOnly.getTime() === yesterdayDate.getTime()) {
+          dateText = '昨天 ' + chatDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        } 
+        // 如果是今年，显示月日和时间
+        else if (chatDate.getFullYear() === today.getFullYear()) {
+          dateText = (chatDate.getMonth() + 1) + '月' + chatDate.getDate() + '日 ' + 
+                    chatDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        } 
+        // 其他情况显示完整日期时间
+        else {
+          dateText = chatDate.getFullYear() + '/' + (chatDate.getMonth() + 1) + '/' + chatDate.getDate() + ' ' + 
+                    chatDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'chat-item-title';
+        titleSpan.textContent = title;
+        
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'chat-item-date';
+        dateSpan.textContent = dateText;
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'chat-item-delete';
+        deleteBtn.textContent = '×';
+        deleteBtn.title = '删除此对话';
+        
+        // 点击对话项切换对话
+        item.addEventListener('click', function(e) {
+          if (e.target !== deleteBtn) {
+            loadChat(chat.id);
+            dropdown.style.display = 'none';
+          }
+        });
+        
+        // 点击删除按钮删除对话
+        deleteBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (confirm('确定要删除此对话吗？')) {
+            deleteChat(chat.id);
+          }
+        });
+        
+        item.appendChild(titleSpan);
+        item.appendChild(dateSpan);
+        item.appendChild(deleteBtn);
+        dropdown.appendChild(item);
+      });
+    }
+    
+    // 加载指定ID的对话
+    function loadChat(chatId) {
+      try {
+        const chat = chatList.find(c => c.id === chatId);
+        if (!chat) {
+          console.error('未找到ID为', chatId, '的对话');
+          showToast('未找到指定对话', 'error');
+          return;
+        }
+        
+        // 加载对话ID
+        currentChatId = chat.id;
+        
+        // 加载消息
+        messages = chat.messages;
+        
+        // 清空聊天区域
+        chatMessages.innerHTML = '';
+        
+        // 显示所有消息
+        messages.forEach(msg => {
+          // 传递消息的时间戳，如果存在
+          addMessage(msg.content, msg.role, false, msg.timestamp);
+        });
+        
+        // 更新对话长度
+        updateContextLength();
+        
+        // 保存为最近对话
+        saveAsLastChat(chat);
+        
+        // 更新UI
+        updateChatListUI();
+        
+        console.log('已加载ID为', chatId, '的对话，消息数量:', messages.length);
+      } catch (e) {
+        console.error('加载对话时出错:', e);
+        showToast('加载对话时出错', 'error');
+      }
+    }
+    
+    // 删除指定ID的对话
+    function deleteChat(chatId) {
+      // 从列表中移除
+      const index = chatList.findIndex(c => c.id === chatId);
+      if (index !== -1) {
+        chatList.splice(index, 1);
+        
+        // 保存更新后的列表
+        chrome.storage.local.set({ chatList: chatList }, function() {
+          if (chrome.runtime.lastError) {
+            console.error('删除对话失败:', chrome.runtime.lastError);
+            showToast('删除对话失败，请重试', 'error');
+            return;
+          }
+          
+          console.log('已删除ID为', chatId, '的对话');
+          showToast('对话已删除', 'success');
+          
+          // 如果删除的是当前对话，创建新对话
+          if (chatId === currentChatId) {
+            startNewChat();
+          } else {
+            // 否则仅更新UI
+            updateChatListUI();
+          }
+        });
+      }
+    }
+    
+    // 保存为最近对话
+    function saveAsLastChat(chat) {
+      chrome.storage.local.set({ lastChat: chat }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('保存最近对话失败:', chrome.runtime.lastError);
+          return;
+        }
+        console.log('已将ID为', chat.id, '的对话保存为最近对话');
+      });
+    }
+    
+    // 开始新对话
+    function startNewChat() {
+      // 清空消息列表
+      messages = [];
+      chatMessages.innerHTML = '';
+      chatInput.value = '';
+      
+      // 生成新的对话ID
+      currentChatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      
+      // 清除本地存储的lastChat
+      chrome.storage.local.remove('lastChat', function() {
+        console.log('已清除上次对话，开始新对话');
+      });
+      
+      // 更新当前对话长度
+      updateContextLength();
+      
+      // 更新UI
+      updateChatListUI();
+    }
+    
+    // 加载上一次的对话
+    function loadLastChat() {
+      chrome.storage.local.get({ lastChat: null }, function(data) {
+        if (chrome.runtime.lastError) {
+          console.error('加载上次对话失败:', chrome.runtime.lastError);
+          showToast('加载上次对话失败', 'error');
+          return;
+        }
+        
+        if (data.lastChat && data.lastChat.messages && data.lastChat.messages.length > 0) {
+          try {
+            // 加载对话ID
+            currentChatId = data.lastChat.id || currentChatId;
+            
+            // 加载消息
+            messages = data.lastChat.messages;
+            
+            // 清空聊天区域
+            chatMessages.innerHTML = '';
+            
+            // 显示所有消息
+            messages.forEach(msg => {
+              // 传递消息的时间戳，如果存在
+              addMessage(msg.content, msg.role, false, msg.timestamp);
+            });
+            
+            // 更新对话长度
+            updateContextLength();
+            
+            // 更新UI
+            updateChatListUI();
+            
+            console.log('已加载上次对话，消息数量:', messages.length);
+          } catch (e) {
+            console.error('处理上次对话时出错:', e);
+            showToast('加载对话时出错，已重置对话', 'error');
+            startNewChat();
+          }
+        } else {
+          console.log('没有找到上次的对话或对话为空');
+        }
+      });
+    }
+    
+    // 保存当前对话
+    function saveCurrentChat() {
+      if (messages.length === 0) return;
+      
+      const chatData = {
+        id: currentChatId,
+        messages: messages,
+        lastUpdated: Date.now()
+      };
+      
+      // 保存为最近对话
+      chrome.storage.local.set({ lastChat: chatData }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('保存最近对话失败:', chrome.runtime.lastError);
+          showToast('保存对话失败，请重试', 'error');
+          return;
+        }
+        console.log('当前对话已保存为最近对话，消息数量:', messages.length);
+      });
+      
+      // 检查此对话是否已在列表中
+      const index = chatList.findIndex(c => c.id === currentChatId);
+      if (index !== -1) {
+        // 更新现有对话
+        chatList[index] = chatData;
+      } else {
+        // 添加新对话
+        chatList.push(chatData);
+      }
+      
+      // 限制对话数量
+      limitChatListSize();
+      
+      // 保存对话列表
+      chrome.storage.local.set({ chatList: chatList }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('保存对话列表失败:', chrome.runtime.lastError);
+          showToast('保存对话列表失败，请重试', 'error');
+          return;
+        }
+        console.log('对话列表已更新，当前共', chatList.length, '个对话');
+        
+        // 更新UI
+        updateChatListUI();
+      });
+    }
+    
+    // 限制对话列表大小
+    function limitChatListSize() {
+      // 获取设置中的最大对话数量，默认为20
+      chrome.storage.local.get({ maxChatHistory: 20 }, function(data) {
+        const maxChats = data.maxChatHistory;
+        
+        // 如果当前对话数量超过限制
+        if (chatList.length > maxChats) {
+          // 按最后更新时间排序
+          chatList.sort((a, b) => b.lastUpdated - a.lastUpdated);
+          
+          // 保留最新的maxChats条对话
+          chatList = chatList.slice(0, maxChats);
+          
+          console.log(`对话数量已超过限制(${maxChats})，已自动清理旧对话`);
+        }
+      });
+    }
+    
+    // 添加消息到界面
+    function addMessage(content, role, isError = false, timestamp = null) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${role}`;
+      
+      const messageContent = document.createElement('div');
+      messageContent.className = 'message-content';
+      
+      if (isError) {
+        messageContent.classList.add('error');
+      }
+      
+      // 处理消息内容 - 如果是AI回复，尝试渲染Markdown
+      if (role === 'assistant' && !isError && window.marked) {
+        try {
+          messageContent.innerHTML = window.marked.parse(content);
+        } catch (e) {
+          console.error('Markdown解析错误:', e);
+          messageContent.textContent = content;
+        }
+      } else {
+        messageContent.textContent = content;
+      }
+      
+      // 添加时间
+      const messageTime = document.createElement('div');
+      messageTime.className = 'message-time';
+      
+      // 使用传入的时间戳或当前时间
+      const messageDate = timestamp ? new Date(timestamp) : new Date();
+      const today = new Date();
+      
+      // 重置时间部分，只比较日期
+      const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const yesterdayDate = new Date(todayDate);
+      yesterdayDate.setDate(todayDate.getDate() - 1);
+      const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+      
+      let displayTime = '';
+      
+      // 如果是今天，只显示时间
+      if (messageDateOnly.getTime() === todayDate.getTime()) {
+        displayTime = '今天 ' + messageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      } 
+      // 如果是昨天，显示"昨天"和时间
+      else if (messageDateOnly.getTime() === yesterdayDate.getTime()) {
+        displayTime = '昨天 ' + messageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      } 
+      // 如果是今年，显示月日和时间
+      else if (messageDate.getFullYear() === today.getFullYear()) {
+        displayTime = (messageDate.getMonth() + 1) + '月' + messageDate.getDate() + '日 ' + 
+                  messageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      } 
+      // 其他情况显示完整日期时间
+      else {
+        displayTime = messageDate.getFullYear() + '/' + (messageDate.getMonth() + 1) + '/' + messageDate.getDate() + ' ' + 
+                  messageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      }
+      
+      messageTime.textContent = displayTime;
+      
+      messageDiv.appendChild(messageContent);
+      messageDiv.appendChild(messageTime);
+      chatMessages.appendChild(messageDiv);
+      
+      // 滚动到最新消息
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 显示AI正在输入的指示器
+    function showTypingIndicator() {
+      const indicator = document.createElement('div');
+      indicator.className = 'typing-indicator';
+      
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'typing-dot';
+        indicator.appendChild(dot);
+      }
+      
+      indicator.id = 'typingIndicator';
+      chatMessages.appendChild(indicator);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // 隐藏AI正在输入的指示器
+    function hideTypingIndicator() {
+      const indicator = document.getElementById('typingIndicator');
+      if (indicator) {
+        indicator.remove();
+      }
+    }
+    
+    // 更新当前对话长度
+    function updateContextLength() {
+      if (contextLength) {
+        contextLength.textContent = `当前对话长度：${messages.length}`;
+      }
+    }
+    
+    // 保存到历史记录
+    function saveToHistory(query, response) {
+      chrome.storage.local.get({ saveHistory: true }, function(data) {
+        if (data.saveHistory) {
+          chrome.runtime.sendMessage({
+            action: 'saveSearchHistory',
+            data: {
+              id: currentChatId,
+              query: query,
+              response: response,
+              timestamp: Date.now(),
+              type: 'chat',
+              rating: 0
+            }
+          });
+        }
+      });
+    }
+    
+    // 发送按钮点击事件
+    sendButton.addEventListener('click', sendMessage);
+    
+    // 输入框回车发送
+    chatInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+    
+    // 输入框自动调整高度
+    chatInput.addEventListener('input', function() {
+      // 重置高度以获取正确的scrollHeight
+      this.style.height = '44px';
+      
+      // 设置新高度，但不超过最大高度
+      const newHeight = Math.min(this.scrollHeight, 120);
+      this.style.height = newHeight + 'px';
+      
+      // 启用/禁用发送按钮
+      sendButton.disabled = !this.value.trim();
+    });
+    
+    // 新对话按钮
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', startNewChat);
+    }
+    
+    // 初始禁用发送按钮
+    sendButton.disabled = true;
   }
 
   // ====== 导航栏遮罩控制 ======
@@ -1810,469 +2902,1007 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // 初始化所有功能
-  initializeMemo();
-  initializeSettings();
-  initializeHistory();
-  initPromptManagement();
-  initializeTabs(); // 添加标签页初始化
+  // 初始化代理设置
+  function initializeProxy() {
+    const proxyEnabled = document.getElementById('proxyEnabled');
+    const proxyMode = document.getElementById('proxyMode');
+    const pacScriptUrl = document.getElementById('pacScriptUrl');
+    const proxyScheme = document.getElementById('proxyScheme');
+    const proxyHost = document.getElementById('proxyHost');
+    const proxyPort = document.getElementById('proxyPort');
+    const proxyAuthRequired = document.getElementById('proxyAuthRequired');
+    const proxyUsername = document.getElementById('proxyUsername');
+    const proxyPassword = document.getElementById('proxyPassword');
+    const toggleProxyPassword = document.getElementById('toggleProxyPassword');
+    const bypassList = document.getElementById('bypassList');
+    const saveProxyBtn = document.getElementById('saveProxyBtn');
+    const testProxyBtn = document.getElementById('testProxyBtn');
+    const helpProxyBtn = document.getElementById('helpProxyBtn');
+    const proxyStatus = document.getElementById('proxyStatus');
+    const pacScriptSettings = document.getElementById('pacScriptSettings');
+    const fixedServersSettings = document.getElementById('fixedServersSettings');
+    const proxyAuthSettings = document.getElementById('proxyAuthSettings');
+    const proxyConfigList = document.getElementById('proxyConfigList');
+    const loadProxyConfigBtn = document.getElementById('loadProxyConfigBtn');
+    const deleteProxyConfigBtn = document.getElementById('deleteProxyConfigBtn');
+    const saveProxyConfigBtn = document.getElementById('saveProxyConfigBtn');
+    const proxyConfigName = document.getElementById('proxyConfigName');
 
-  // 获取DOM元素
-  const chatInput = document.querySelector('.chat-input');
-  const sendButton = document.querySelector('.send-button');
-  const chatMessages = document.querySelector('.chat-messages');
-  const newChatButton = document.querySelector('.new-chat-btn');
-  const contextLength = document.querySelector('.context-length');
-  
-  // 聊天历史持久化key
-  const CHAT_SESSION_KEY = 'chatSession';
+    // 加载保存的代理设置
+    loadProxySettings();
+    
+    // 加载保存的代理配置列表
+    loadProxyConfigList();
+    
+    // 检查当前代理状态
+    checkProxyStatus();
 
-  // 聊天历史恢复
-  function restoreChatSession() {
-    chrome.storage.local.get(CHAT_SESSION_KEY, function(data) {
-      const session = data[CHAT_SESSION_KEY] || [];
-      conversationHistory = session;
-      chatMessages.innerHTML = '';
-      session.forEach(msg => {
-        addMessageToChat(msg.role, msg.content, msg.role === 'assistant' ? getMarkdownSetting() : false, msg.timestamp);
+    // 根据代理模式显示对应的设置面板
+    proxyMode.addEventListener('change', function() {
+      showProxySettings(this.value);
+    });
+
+    // 代理认证设置显示/隐藏
+    proxyAuthRequired.addEventListener('change', function() {
+      proxyAuthSettings.style.display = this.checked ? 'block' : 'none';
+      
+      // 当认证被勾选/取消时，更新相应字段的禁用状态
+      const isEnabled = proxyEnabled.checked;
+      if (proxyUsername && proxyPassword) {
+        proxyUsername.disabled = !(isEnabled && this.checked);
+        proxyPassword.disabled = !(isEnabled && this.checked);
+      }
+    });
+
+    // 代理密码显示/隐藏
+    if (toggleProxyPassword) {
+      toggleProxyPassword.addEventListener('click', function() {
+        const type = proxyPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+        proxyPassword.setAttribute('type', type);
+        this.textContent = type === 'password' ? '显示' : '隐藏';
       });
-      updateContextLength();
-    });
-  }
-
-  // 获取当前Markdown设置
-  function getMarkdownSetting() {
-    // 直接从checkbox获取，防止切换时不同步
-    const checkbox = document.getElementById('useMarkdown');
-    return checkbox ? checkbox.checked : true;
-  }
-
-  // 保存当前会话
-  function saveChatSession() {
-    chrome.storage.local.set({ [CHAT_SESSION_KEY]: conversationHistory });
-  }
-
-  // 监听输入框内容变化
-  chatInput.addEventListener('input', function() {
-    const hasContent = this.value.trim().length > 0;
-    sendButton.disabled = !hasContent;
-  });
-  
-  // 监听输入框键盘事件：Enter发送，Shift+Enter换行
-  chatInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!sendButton.disabled) {
-        sendButton.click();
-      }
     }
-    // Shift+Enter 默认允许换行
-  });
-  
-  // 监听发送按钮点击
-  sendButton.addEventListener('click', sendMessage);
-  
-  // 生成唯一ID
-  function generateId() {
-    return 'history_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  }
 
-  // 发送消息函数
-  async function sendMessage() {
-    const message = chatInput.value.trim();
-    if (!message) return;
-    const timestamp = Date.now();
-    addMessageToChat('user', message, false, timestamp);
-    conversationHistory.push({ role: 'user', content: message, timestamp: timestamp });
-    chatInput.value = '';
-    sendButton.disabled = true;
-    updateContextLength();
-    saveChatSession();
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'typing-indicator';
-    for (let i = 0; i < 3; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'typing-dot';
-      typingDiv.appendChild(dot);
-    }
-    chatMessages.appendChild(typingDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    chrome.storage.local.get({
-      apiUrl: 'https://api.openai.com/v1/chat/completions',
-      apiKey: '',
-      model: 'gpt-3.5-turbo',
-      customModel: '',
-      useMarkdown: true,
-      saveHistory: true
-    }, async function(items) {
-      const actualModel = items.model === 'custom' ? items.customModel : items.model;
-      const messages = conversationHistory.map(m => ({ role: m.role, content: m.content }));
-      try {
-        chrome.runtime.sendMessage({
-          action: 'fetchAIResponse',
-          apiUrl: items.apiUrl,
-          apiKey: items.apiKey,
-          data: {
-            model: actualModel,
-            messages: messages,
-            temperature: 0.7
+    // 代理启用/禁用状态变化
+    proxyEnabled.addEventListener('change', function() {
+      const enabled = this.checked;
+      // 禁用/启用部分设置字段，但保持基本配置可编辑
+      const fields = [bypassList, pacScriptUrl];
+      fields.forEach(field => {
+        if (field) field.disabled = !enabled;
+      });
+      
+      // 禁用/启用认证字段
+      if (proxyAuthRequired) {
+        proxyAuthRequired.disabled = !enabled;
+        // 当代理禁用时，也禁用认证相关的用户名和密码字段
+        if (proxyUsername && proxyPassword) {
+          const authEnabled = enabled && proxyAuthRequired.checked;
+          proxyUsername.disabled = !authEnabled;
+          proxyPassword.disabled = !authEnabled;
+          if (toggleProxyPassword) {
+            toggleProxyPassword.disabled = !authEnabled;
           }
-        }, function(response) {
-          typingDiv.remove();
-          if (chrome.runtime.lastError) {
-            addMessageToChat('assistant', '❌ 网络或扩展错误：' + chrome.runtime.lastError.message);
-            conversationHistory.push({ role: 'assistant', content: '❌ 网络或扩展错误：' + chrome.runtime.lastError.message });
-            saveChatSession();
-            updateContextLength();
-            return;
-          }
-          if (!response || !response.success) {
-            addMessageToChat('assistant', '❌ AI请求失败：' + (response && response.error ? response.error : '未知错误'));
-            conversationHistory.push({ role: 'assistant', content: '❌ AI请求失败：' + (response && response.error ? response.error : '未知错误') });
-            saveChatSession();
-            updateContextLength();
-            return;
-          }
-          const aiContent = response.data.choices && response.data.choices[0].message && response.data.choices[0].message.content ? response.data.choices[0].message.content : '';
-          if (!aiContent) {
-            const errorTimestamp = Date.now();
-            addMessageToChat('assistant', '❌ AI未返回内容', false, errorTimestamp);
-            conversationHistory.push({ role: 'assistant', content: '❌ AI未返回内容', timestamp: errorTimestamp });
-            saveChatSession();
-            updateContextLength();
-            return;
-          }
-          const responseTimestamp = Date.now();
-          addMessageToChat('assistant', aiContent, items.useMarkdown, responseTimestamp);
-          if (items.saveHistory) {
-            const historyData = {
-              id: generateId(),
-              query: message,
-              response: aiContent,
-              timestamp: responseTimestamp,
-              type: 'chat',
-              rating: 0
-            };
-            chrome.storage.local.get('searchHistory', function(data) {
-              const history = data.searchHistory || [];
-              history.push(historyData);
-              chrome.storage.local.set({ searchHistory: history });
-            });
-          }
-          conversationHistory.push({ role: 'assistant', content: aiContent, timestamp: responseTimestamp });
-          saveChatSession();
-          updateContextLength();
-        });
-      } catch (err) {
-        typingDiv.remove();
-        const errorTimestamp = Date.now();
-        addMessageToChat('assistant', '❌ 请求异常：' + err.message, false, errorTimestamp);
-        conversationHistory.push({ role: 'assistant', content: '❌ 请求异常：' + err.message, timestamp: errorTimestamp });
-        saveChatSession();
-        updateContextLength();
+        }
       }
-    });
-  }
-  
-  // 添加消息到聊天界面，支持Markdown
-  function addMessageToChat(role, content, useMarkdown, timestamp) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${role}`;
-    const messageContent = document.createElement('div');
-    messageContent.className = 'message-content';
-    if (role === 'assistant') {
-      if (window.marked) {
-        messageContent.innerHTML = window.marked.parse(content);
+      
+      // 如果禁用代理，更新状态信息
+      if (!enabled) {
+        proxyStatus.textContent = '当前状态: 直接连接（无代理）';
+        proxyStatus.style.color = '#666';
+        proxyStatus.style.display = 'block';
+        
+        // 5秒后隐藏状态信息
+        setTimeout(function() {
+          proxyStatus.style.display = 'none';
+        }, 5000);
       } else {
-        messageContent.textContent = content;
-      }
-    } else {
-      messageContent.textContent = content;
-      messageContent.style.whiteSpace = 'pre-line'; // 保留用户输入的换行
-    }
-    const messageTime = document.createElement('div');
-    messageTime.className = 'message-time';
-    messageTime.textContent = new Date(timestamp).toLocaleTimeString();
-    messageDiv.appendChild(messageContent);
-    messageDiv.appendChild(messageTime);
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  }
-  
-  // 更新对话长度显示
-  function updateContextLength() {
-    contextLength.textContent = `当前对话长度：${conversationHistory.length}`;
-  }
-  
-  // 新建对话
-  newChatButton.addEventListener('click', function() {
-    conversationHistory = [];
-    chatMessages.innerHTML = '';
-    updateContextLength();
-    chrome.storage.local.remove(CHAT_SESSION_KEY);
-  });
-
-  // 页面加载时自动恢复
-  restoreChatSession();
-
-  if (window.marked) {
-    window.marked.setOptions({
-      gfm: true,
-      breaks: true,
-      pedantic: false,
-      sanitize: false,
-      smartLists: true,
-      smartypants: false,
-      highlight: function(code, lang) {
-        return code;
+        // 如果启用代理，清除状态显示
+        proxyStatus.style.display = 'none';
       }
     });
-  }
 
-  // 编码/解码工具逻辑
-  const codecType = document.getElementById('codecType');
-  const codecInput = document.getElementById('codecInput');
-  const codecOutput = document.getElementById('codecOutput');
-  const encodeBtn = document.getElementById('encodeBtn');
-  const decodeBtn = document.getElementById('decodeBtn');
-  const copyCodecOutputBtn = document.getElementById('copyCodecOutputBtn');
-
-  function encodeText(type, text) {
-    try {
-      switch (type) {
-        case 'unicode':
-          return text.split('').map(char => '\\u' + char.charCodeAt(0).toString(16).padStart(4, '0')).join('');
-        case 'base64':
-          return btoa(unescape(encodeURIComponent(text)));
-        case 'url':
-          return encodeURIComponent(text);
-        case 'uricomponent':
-          return encodeURIComponent(text);
-        case 'htmlentity':
-          return text.replace(/[\u00A0-\u9999<>&]/gim, function(i) {
-            return '&#'+i.charCodeAt(0)+';';
-          });
-        case 'hex':
-          return Array.from(text).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-        case 'ascii':
-          return Array.from(text).map(c => c.charCodeAt(0)).join(' ');
-        case 'timestamp':
-          if (!text.trim()) return '';
-          const date = new Date(text.trim());
-          if (isNaN(date.getTime())) return '无效日期格式';
-          return Math.floor(date.getTime() / 1000).toString();
-        default:
-          return text;
-      }
-    } catch (e) {
-      return '编码失败: ' + e.message;
-    }
-  }
-
-  function decodeText(type, text) {
-    try {
-      switch (type) {
-        case 'unicode':
-          // 只解码合法的 \\uXXXX，其他原样保留
-          let decoded = text.replace(/\\u([0-9a-fA-F]{4})/g, (match, grp) =>
-            String.fromCharCode(parseInt(grp, 16))
-          );
-          return decoded.replace(/\\u(?![0-9a-fA-F]{4})/g, '');
-        case 'base64':
-          return decodeURIComponent(escape(atob(text)));
-        case 'url':
-          return decodeURIComponent(text);
-        case 'uricomponent':
-          return decodeURIComponent(text);
-        case 'htmlentity':
-          let txt = document.createElement('textarea');
-          txt.innerHTML = text;
-          return txt.value;
-        case 'hex':
-          return text.replace(/(?:[0-9a-fA-F]{2})/g, m => String.fromCharCode(parseInt(m, 16)));
-        case 'ascii':
-          return text.split(' ').map(c => String.fromCharCode(Number(c))).join('');
-        case 'timestamp':
-          if (!text.trim()) return '';
-          let ts = text.trim();
-          if (/^\d{13}$/.test(ts)) {
-            ts = parseInt(ts, 10);
-          } else if (/^\d{10}$/.test(ts)) {
-            ts = parseInt(ts, 10) * 1000;
-          } else {
-            return '无效时间戳';
-          }
-          const d = new Date(ts);
-          if (isNaN(d.getTime())) return '无效时间戳';
-          return d.toLocaleString();
-        default:
-          return text;
-      }
-    } catch (e) {
-      return '解码失败: ' + e.message;
-    }
-  }
-
-  if (encodeBtn && decodeBtn) {
-    encodeBtn.addEventListener('click', function() {
-      codecOutput.value = encodeText(codecType.value, codecInput.value);
+    // 保存代理设置
+    saveProxyBtn.addEventListener('click', function() {
+      saveProxySettings();
     });
-    decodeBtn.addEventListener('click', function() {
-      codecOutput.value = decodeText(codecType.value, codecInput.value);
-    });
-  }
 
-  if (copyCodecOutputBtn) {
-    copyCodecOutputBtn.addEventListener('click', function() {
-      if (!codecOutput.value) {
-        showToast('没有可复制的内容', 'error');
+    // 测试代理连接
+    testProxyBtn.addEventListener('click', function() {
+      testProxyConnection();
+    });
+    
+    // 帮助按钮
+    if (helpProxyBtn) {
+      helpProxyBtn.addEventListener('click', function() {
+        showProxyHelp();
+      });
+    }
+
+    // 加载选中的代理配置
+    loadProxyConfigBtn.addEventListener('click', function() {
+      const configName = proxyConfigList.value;
+      if (!configName) {
+        showToast('请选择一个配置', 'error');
         return;
       }
-      navigator.clipboard.writeText(codecOutput.value).then(function() {
-        showToast('复制成功', 'success');
+      loadProxyConfig(configName);
+    });
+
+    // 删除选中的代理配置
+    deleteProxyConfigBtn.addEventListener('click', function() {
+      const configName = proxyConfigList.value;
+      if (!configName) {
+        showToast('请选择一个配置', 'error');
+        return;
+      }
+      deleteProxyConfig(configName);
+    });
+
+    // 保存当前代理设置为新配置
+    saveProxyConfigBtn.addEventListener('click', function() {
+      const configName = proxyConfigName.value.trim();
+      if (!configName) {
+        showToast('请输入配置名称', 'error');
+        return;
+      }
+      saveCurrentAsProxyConfig(configName);
+    });
+    
+    // 初始根据启用状态设置字段状态，但保持大部分配置可编辑
+    const isEnabled = proxyEnabled.checked;
+    const fields = [bypassList, pacScriptUrl];
+    fields.forEach(field => {
+      if (field) field.disabled = !isEnabled;
+    });
+    
+    // 特殊处理认证相关字段
+    if (proxyAuthRequired) {
+      proxyAuthRequired.disabled = !isEnabled;
+      if (proxyAuthRequired.checked && proxyUsername && proxyPassword) {
+        const authEnabled = isEnabled && proxyAuthRequired.checked;
+        proxyUsername.disabled = !authEnabled;
+        proxyPassword.disabled = !authEnabled;
+        if (toggleProxyPassword) {
+          toggleProxyPassword.disabled = !authEnabled;
+        }
+      }
+    }
+  }
+  
+  // 显示代理帮助信息
+  function showProxyHelp() {
+    // 创建模态框
+    const modal = document.createElement('div');
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    modal.style.zIndex = '1000';
+    modal.style.display = 'flex';
+    modal.style.justifyContent = 'center';
+    modal.style.alignItems = 'center';
+    
+    // 创建内容容器
+    const content = document.createElement('div');
+    content.style.backgroundColor = 'white';
+    content.style.padding = '20px';
+    content.style.borderRadius = '8px';
+    content.style.width = '90%';
+    content.style.maxWidth = '500px';
+    content.style.maxHeight = '80vh';
+    content.style.overflow = 'auto';
+    content.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+    
+    // 添加帮助内容
+    content.innerHTML = `
+      <h2 style="margin-top: 0; color: #1a73e8;">代理设置帮助</h2>
+      
+      <h3>基本配置流程</h3>
+      <ol style="padding-left: 20px; line-height: 1.5;">
+        <li>输入代理服务器地址和端口（这些字段始终可编辑）</li>
+        <li>选择合适的代理协议（HTTP、HTTPS、SOCKS4或SOCKS5）</li>
+        <li>如果需要认证，勾选"需要认证"并填写用户名和密码</li>
+        <li>勾选"启用代理"选项</li>
+        <li>点击"保存设置"按钮应用配置</li>
+        <li>点击"测试连接"验证代理是否正常工作</li>
+      </ol>
+      
+      <h3>禁用代理时编辑设置</h3>
+      <p>为了方便配置，即使在代理禁用状态下，您也可以编辑以下字段：</p>
+      <ul style="padding-left: 20px; line-height: 1.5;">
+        <li><b>代理模式</b> - 选择代理工作方式</li>
+        <li><b>代理协议</b> - 选择HTTP、HTTPS或SOCKS协议</li>
+        <li><b>代理服务器</b> - 输入服务器地址</li>
+        <li><b>端口</b> - 输入端口号</li>
+      </ul>
+      <p>其他字段（如PAC脚本URL、认证字段、绕过列表等）需要先启用代理才能编辑。</p>
+      
+      <h3>常见问题</h3>
+      <p><b>问题：设置了代理但不生效</b></p>
+      <p>可能原因：</p>
+      <ul style="padding-left: 20px; line-height: 1.5;">
+        <li>代理服务器未正常运行或不可访问</li>
+        <li>代理设置未正确保存（请确保点击"保存设置"按钮）</li>
+        <li>代理认证信息不正确</li>
+        <li>Chrome的代理权限受限</li>
+        <li>忘记勾选"启用代理"选项</li>
+      </ul>
+      
+      <h3>HTTP/HTTPS代理认证说明</h3>
+      <p>Chrome扩展的代理API对HTTP/HTTPS代理的认证支持有限：</p>
+      <ul style="padding-left: 20px; line-height: 1.5;">
+        <li>当访问需要代理认证的网站时，Chrome会弹出认证对话框</li>
+        <li>您需要在弹出窗口中手动输入用户名和密码</li>
+        <li>这是Chrome的安全限制，无法通过扩展自动处理</li>
+      </ul>
+      
+      <h3>SOCKS代理说明</h3>
+      <p>SOCKS4/5代理支持在扩展中直接设置认证信息，通常不需要额外的认证步骤。</p>
+      
+      <h3>测试连接说明</h3>
+      <p>点击"测试连接"会显示您当前的IP地址。如果显示的IP与您的代理服务器IP一致，说明代理设置成功。即使在代理未启用时，您也可以测试连接以查看当前的IP地址。</p>
+      
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="closeHelpBtn" style="padding: 8px 16px; background-color: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer;">关闭</button>
+      </div>
+    `;
+    
+    // 添加内容到模态框
+    modal.appendChild(content);
+    
+    // 添加模态框到页面
+    document.body.appendChild(modal);
+    
+    // 添加关闭按钮事件
+    document.getElementById('closeHelpBtn').addEventListener('click', function() {
+      document.body.removeChild(modal);
+    });
+    
+    // 点击模态框背景关闭
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    });
+  }
+
+  // 检查当前代理状态
+  function checkProxyStatus() {
+    chrome.proxy.settings.get({}, function(details) {
+      const proxyStatus = document.getElementById('proxyStatus');
+      if (!proxyStatus) return;
+      
+      let statusText = '';
+      let statusColor = '';
+      
+      // 确认代理状态
+      if (details && details.value) {
+        const proxyConfig = details.value;
+        
+        if (proxyConfig.mode === 'direct') {
+          statusText = '✓ 当前状态: 直接连接（无代理）';
+          statusColor = '#666';
+        } else if (proxyConfig.mode === 'auto_detect') {
+          statusText = '✓ 当前状态: 自动检测代理';
+          statusColor = '#1a73e8';
+        } else if (proxyConfig.mode === 'pac_script') {
+          statusText = '✓ 当前状态: 使用PAC脚本';
+          statusColor = '#1a73e8';
+        } else if (proxyConfig.mode === 'fixed_servers') {
+          const proxy = proxyConfig.rules && proxyConfig.rules.singleProxy;
+          if (proxy) {
+            statusText = `✓ 当前状态: 使用${proxy.scheme}代理 ${proxy.host}:${proxy.port}`;
+            statusColor = '#34a853';
+          } else {
+            statusText = '✓ 当前状态: 使用固定代理服务器';
+            statusColor = '#1a73e8';
+          }
+        } else if (proxyConfig.mode === 'system') {
+          statusText = '✓ 当前状态: 使用系统代理设置';
+          statusColor = '#1a73e8';
+        }
+      } else {
+        statusText = '✗ 未能获取当前代理状态';
+        statusColor = '#ea4335';
+      }
+      
+      // 显示状态
+      proxyStatus.textContent = statusText;
+      proxyStatus.style.color = statusColor;
+      proxyStatus.style.display = 'block';
+      
+      // 5秒后隐藏状态信息
+      setTimeout(function() {
+        proxyStatus.style.display = 'none';
+      }, 5000);
+    });
+  }
+
+  // 显示对应代理模式的设置面板
+  function showProxySettings(mode) {
+    const pacScriptSettings = document.getElementById('pacScriptSettings');
+    const fixedServersSettings = document.getElementById('fixedServersSettings');
+
+    // 隐藏所有设置面板
+    pacScriptSettings.style.display = 'none';
+    fixedServersSettings.style.display = 'none';
+
+    // 根据选择的模式显示对应的设置面板
+    switch (mode) {
+      case 'pac_script':
+        pacScriptSettings.style.display = 'block';
+        break;
+      case 'fixed_servers':
+        fixedServersSettings.style.display = 'block';
+        break;
+    }
+  }
+
+  // 加载保存的代理设置
+  function loadProxySettings() {
+    chrome.storage.local.get({
+      proxyEnabled: false,
+      proxyMode: 'direct',
+      pacScriptUrl: '',
+      proxyScheme: 'http',
+      proxyHost: '',
+      proxyPort: 8080,
+      proxyAuthRequired: false,
+      proxyUsername: '',
+      proxyPassword: '',
+      bypassList: 'localhost, 127.0.0.1, <local>'
+    }, function(data) {
+      document.getElementById('proxyEnabled').checked = data.proxyEnabled;
+      document.getElementById('proxyMode').value = data.proxyMode;
+      document.getElementById('pacScriptUrl').value = data.pacScriptUrl;
+      document.getElementById('proxyScheme').value = data.proxyScheme;
+      document.getElementById('proxyHost').value = data.proxyHost;
+      document.getElementById('proxyPort').value = data.proxyPort;
+      document.getElementById('proxyAuthRequired').checked = data.proxyAuthRequired;
+      document.getElementById('proxyUsername').value = data.proxyUsername;
+      document.getElementById('proxyPassword').value = data.proxyPassword;
+      document.getElementById('bypassList').value = data.bypassList;
+
+      // 显示对应的设置面板
+      showProxySettings(data.proxyMode);
+      
+      // 显示/隐藏认证设置
+      document.getElementById('proxyAuthSettings').style.display = 
+        data.proxyAuthRequired ? 'block' : 'none';
+    });
+  }
+
+  // 保存代理设置
+  function saveProxySettings() {
+    const proxyEnabled = document.getElementById('proxyEnabled').checked;
+    const proxyMode = document.getElementById('proxyMode').value;
+    const pacScriptUrl = document.getElementById('pacScriptUrl').value.trim();
+    const proxyScheme = document.getElementById('proxyScheme').value;
+    const proxyHost = document.getElementById('proxyHost').value.trim();
+    const proxyPort = parseInt(document.getElementById('proxyPort').value, 10) || 8080;
+    const proxyAuthRequired = document.getElementById('proxyAuthRequired').checked;
+    const proxyUsername = document.getElementById('proxyUsername').value.trim();
+    const proxyPassword = document.getElementById('proxyPassword').value;
+    const bypassList = document.getElementById('bypassList').value.trim();
+
+    // 检查必要的输入项（只在代理启用时检查）
+    if (proxyEnabled) {
+      if (proxyMode === 'pac_script' && !pacScriptUrl) {
+        showToast('请输入PAC脚本URL', 'error');
+        return;
+      }
+      
+      if (proxyMode === 'fixed_servers' && !proxyHost) {
+        showToast('请输入代理服务器地址', 'error');
+        return;
+      }
+    }
+
+    // 保存设置到本地存储
+    const settings = {
+      proxyEnabled,
+      proxyMode,
+      pacScriptUrl,
+      proxyScheme,
+      proxyHost,
+      proxyPort,
+      proxyAuthRequired,
+      proxyUsername,
+      proxyPassword,
+      bypassList
+    };
+
+    chrome.storage.local.set(settings, function() {
+      // 应用代理设置
+      applyProxySettings(settings);
+      
+      // 显示成功消息
+      const proxyStatus = document.getElementById('proxyStatus');
+      proxyStatus.textContent = '✓ 代理设置已保存并应用!';
+      proxyStatus.style.display = 'block';
+      proxyStatus.style.color = '#34a853';
+      
+      // 3秒后隐藏消息
+      setTimeout(function() {
+        proxyStatus.style.display = 'none';
+      }, 3000);
+    });
+  }
+
+  // 应用代理设置
+  function applyProxySettings(settings) {
+    // 如果未启用代理，设置为直接连接
+    if (!settings.proxyEnabled) {
+      chrome.proxy.settings.set({
+        value: { mode: 'direct' },
+        scope: 'regular'
       }, function() {
-        showToast('复制失败', 'error');
+        if (chrome.runtime.lastError) {
+          console.error('禁用代理失败:', chrome.runtime.lastError);
+          showToast('禁用代理失败:' + chrome.runtime.lastError.message, 'error');
+        } else {
+          console.log('已禁用代理，设置为直接连接');
+        }
+      });
+      return;
+    }
+
+    // 构建代理配置
+    let config = {};
+
+    try {
+      switch (settings.proxyMode) {
+        case 'direct':
+          config = { mode: 'direct' };
+          break;
+          
+        case 'auto_detect':
+          config = { mode: 'auto_detect' };
+          break;
+          
+        case 'pac_script':
+          config = {
+            mode: 'pac_script',
+            pacScript: {
+              url: settings.pacScriptUrl,
+              mandatory: true
+            }
+          };
+          break;
+          
+        case 'fixed_servers':
+          // 构建代理服务器配置
+          const singleProxy = {
+            scheme: settings.proxyScheme,
+            host: settings.proxyHost,
+            port: parseInt(settings.proxyPort, 10)
+          };
+          
+          // HTTP认证不能直接在代理配置中设置，需要通过webRequest API
+          // 这里只设置SOCKS认证
+          if (settings.proxyAuthRequired && 
+              (settings.proxyScheme === 'socks4' || settings.proxyScheme === 'socks5')) {
+            if (settings.proxyUsername) {
+              singleProxy.username = settings.proxyUsername;
+            }
+            if (settings.proxyPassword) {
+              singleProxy.password = settings.proxyPassword;
+            }
+          }
+          
+          // 处理绕过列表
+          const bypassList = settings.bypassList
+            .split(/[,\n]/)
+            .map(item => item.trim())
+            .filter(item => item);
+          
+          config = {
+            mode: 'fixed_servers',
+            rules: {
+              singleProxy: singleProxy,
+              bypassList: bypassList
+            }
+          };
+          break;
+          
+        case 'system':
+          config = { mode: 'system' };
+          break;
+      }
+      
+      // 应用代理设置
+      chrome.proxy.settings.set({
+        value: config,
+        scope: 'regular'
+      }, function() {
+        if (chrome.runtime.lastError) {
+          console.error('代理设置应用失败:', chrome.runtime.lastError);
+          showToast('代理设置应用失败:' + chrome.runtime.lastError.message, 'error');
+        } else {
+          console.log('代理设置已应用:', config);
+          
+          // 如果是HTTP/HTTPS代理且需要认证，设置提醒
+          if (settings.proxyEnabled && settings.proxyAuthRequired && 
+              (settings.proxyScheme === 'http' || settings.proxyScheme === 'https')) {
+            showToast('注意: HTTP/HTTPS代理的认证凭据可能需要在浏览器认证提示中手动输入', 'info', 8000);
+          }
+          
+          // 使用timeout确保状态更新
+          setTimeout(function() {
+            checkProxyStatus();
+          }, 500);
+        }
+      });
+    } catch (error) {
+      console.error('设置代理时发生错误:', error);
+      showToast('设置代理时发生错误:' + error.message, 'error');
+    }
+  }
+
+  // 测试代理连接
+  function testProxyConnection() {
+    const proxyStatus = document.getElementById('proxyStatus');
+    proxyStatus.textContent = '正在测试连接...';
+    proxyStatus.style.display = 'block';
+    proxyStatus.style.color = '#1a73e8';
+    
+    // 检查代理配置
+    const proxyEnabled = document.getElementById('proxyEnabled').checked;
+    const proxyHost = document.getElementById('proxyHost').value.trim();
+    const proxyPort = document.getElementById('proxyPort').value.trim();
+    
+    // 如果配置了代理服务器但未启用，提供友好提示
+    if (!proxyEnabled && (proxyHost || proxyPort)) {
+      proxyStatus.innerHTML = `
+        ⚠️ 您已配置代理 ${proxyHost}:${proxyPort} 但尚未启用<br>
+        <span style="font-size: 13px; color: #666;">
+          请勾选"启用代理"并点击"保存设置"后再测试
+        </span>
+      `;
+      proxyStatus.style.color = '#f4b400';  // 警告黄色
+      
+      setTimeout(function() {
+        proxyStatus.style.display = 'none';
+      }, 5000);
+      return;
+    }
+    
+    // 先检查当前代理状态
+    chrome.proxy.settings.get({}, function(details) {
+      // 如果当前是直接连接模式，并且代理未启用
+      if (!proxyEnabled || (details && details.value && details.value.mode === 'direct')) {
+        // 如果代理未启用，提示用户
+        if (!proxyEnabled) {
+          proxyStatus.innerHTML = '⚠️ 当前代理未启用，测试将使用直接连接';
+          proxyStatus.style.color = '#f4b400';  // 警告黄色
+        } else {
+          proxyStatus.innerHTML = '✓ 正在使用直接连接（无代理）';
+          proxyStatus.style.color = '#666';
+        }
+      }
+      
+      // 无论如何都进行连接测试，这样用户可以看到自己的实际IP
+      setTimeout(() => {
+        // 添加测试中的提示
+        if (proxyEnabled) {
+          proxyStatus.innerHTML += '<br>正在通过代理连接测试服务器...';
+        } else {
+          proxyStatus.innerHTML += '<br>正在直接连接测试服务器...';
+        }
+        
+        // 使用多个代理检测服务来验证代理是否工作
+        Promise.any([
+          fetch('https://www.httpbin.org/ip', {method: 'GET', cache: 'no-store'}),
+          fetch('https://api.ipify.org?format=json', {method: 'GET', cache: 'no-store'})
+        ])
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          // 提取IP地址（适配不同的API响应格式）
+          const ip = data.origin || data.ip || JSON.stringify(data);
+          
+          // 显示成功消息和IP地址（可帮助确认是否通过了代理）
+          if (proxyEnabled) {
+            proxyStatus.innerHTML = `✓ 连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">如果此IP与您的代理服务器IP一致，说明代理正常工作</span>`;
+          } else {
+            proxyStatus.innerHTML = `✓ 直接连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">这是您的真实IP地址，因为代理未启用</span>`;
+          }
+          proxyStatus.style.color = '#34a853';
+          
+          // 8秒后隐藏消息，给用户足够时间查看IP
+          setTimeout(function() {
+            proxyStatus.style.display = 'none';
+          }, 8000);
+        })
+        .catch(error => {
+          // 连接失败
+          if (proxyEnabled) {
+            proxyStatus.innerHTML = `✗ 代理连接测试失败: ${error.message}<br>请检查代理服务器是否可用`;
+          } else {
+            proxyStatus.innerHTML = `✗ 直接连接测试失败: ${error.message}<br>请检查您的网络连接`;
+          }
+          proxyStatus.style.color = '#ea4335';
+        });
+      }, 500);
+    });
+  }
+
+  // 加载代理配置列表
+  function loadProxyConfigList() {
+    chrome.storage.local.get({ proxyConfigs: {} }, function(data) {
+      const proxyConfigs = data.proxyConfigs;
+      const proxyConfigList = document.getElementById('proxyConfigList');
+      
+      // 清空列表
+      proxyConfigList.innerHTML = '<option value="">-- 选择已保存的配置 --</option>';
+      
+      // 添加配置选项
+      Object.keys(proxyConfigs).forEach(configName => {
+        const option = document.createElement('option');
+        option.value = configName;
+        option.textContent = configName;
+        proxyConfigList.appendChild(option);
       });
     });
   }
 
-  // 绑定滚动和resize事件，保证滑动和窗口变化时遮罩动态变化
-  if (navTabsMask) navTabsMask.addEventListener('scroll', updateNavMask);
-  window.addEventListener('resize', updateNavMask);
-  tryUpdateNavMask();
+  // 将当前设置保存为新的代理配置
+  function saveCurrentAsProxyConfig(configName) {
+    // 获取当前设置
+    const settings = {
+      proxyEnabled: document.getElementById('proxyEnabled').checked,
+      proxyMode: document.getElementById('proxyMode').value,
+      pacScriptUrl: document.getElementById('pacScriptUrl').value.trim(),
+      proxyScheme: document.getElementById('proxyScheme').value,
+      proxyHost: document.getElementById('proxyHost').value.trim(),
+      proxyPort: parseInt(document.getElementById('proxyPort').value, 10) || 8080,
+      proxyAuthRequired: document.getElementById('proxyAuthRequired').checked,
+      proxyUsername: document.getElementById('proxyUsername').value.trim(),
+      proxyPassword: document.getElementById('proxyPassword').value,
+      bypassList: document.getElementById('bypassList').value.trim()
+    };
+    
+    // 获取现有配置列表
+    chrome.storage.local.get({ proxyConfigs: {} }, function(data) {
+      const proxyConfigs = data.proxyConfigs;
+      
+      // 添加或更新配置
+      proxyConfigs[configName] = settings;
+      
+      // 保存配置列表
+      chrome.storage.local.set({ proxyConfigs }, function() {
+        // 更新配置列表
+        loadProxyConfigList();
+        
+        // 清空配置名称输入框
+        document.getElementById('proxyConfigName').value = '';
+        
+        // 显示成功消息
+        showToast(`配置 "${configName}" 已保存`, 'success');
+      });
+    });
+  }
 
-  // HTTP请求工具相关代码
+  // 加载选定的代理配置
+  function loadProxyConfig(configName) {
+    chrome.storage.local.get({ proxyConfigs: {} }, function(data) {
+      const proxyConfigs = data.proxyConfigs;
+      
+      // 检查配置是否存在
+      if (!proxyConfigs[configName]) {
+        showToast(`配置 "${configName}" 不存在`, 'error');
+        return;
+      }
+      
+      // 获取配置
+      const config = proxyConfigs[configName];
+      
+      // 应用配置到界面
+      document.getElementById('proxyEnabled').checked = config.proxyEnabled;
+      document.getElementById('proxyMode').value = config.proxyMode;
+      document.getElementById('pacScriptUrl').value = config.pacScriptUrl;
+      document.getElementById('proxyScheme').value = config.proxyScheme;
+      document.getElementById('proxyHost').value = config.proxyHost;
+      document.getElementById('proxyPort').value = config.proxyPort;
+      document.getElementById('proxyAuthRequired').checked = config.proxyAuthRequired;
+      document.getElementById('proxyUsername').value = config.proxyUsername;
+      document.getElementById('proxyPassword').value = config.proxyPassword;
+      document.getElementById('bypassList').value = config.bypassList;
+      
+      // 显示对应的设置面板
+      showProxySettings(config.proxyMode);
+      
+      // 显示/隐藏认证设置
+      document.getElementById('proxyAuthSettings').style.display = 
+        config.proxyAuthRequired ? 'block' : 'none';
+      
+      // 显示成功消息
+      showToast(`配置 "${configName}" 已加载`, 'success');
+    });
+  }
+
+  // 删除代理配置
+  function deleteProxyConfig(configName) {
+    chrome.storage.local.get({ proxyConfigs: {} }, function(data) {
+      const proxyConfigs = data.proxyConfigs;
+      
+      // 检查配置是否存在
+      if (!proxyConfigs[configName]) {
+        showToast(`配置 "${configName}" 不存在`, 'error');
+        return;
+      }
+      
+      // 删除配置
+      delete proxyConfigs[configName];
+      
+      // 保存配置列表
+      chrome.storage.local.set({ proxyConfigs }, function() {
+        // 更新配置列表
+        loadProxyConfigList();
+        
+        // 显示成功消息
+        showToast(`配置 "${configName}" 已删除`, 'success');
+      });
+    });
+  }
+
+  // 初始化各功能
+  initializeSettings();
+  initializeHistory();
+  initializeDefaultPrompts();
+  initPromptManagement();
+  initializeTabs();
+  initializeMemo();
+  initializeProxy();
+  initializeChat();
+  initializeCodec(); // 初始化编码解码功能
+  initializeRequest(); // 初始化HTTP请求工具
+  
+  // 初始更新导航遮罩
+  tryUpdateNavMask();
+});
+
+// 初始化HTTP请求工具
+function initializeRequest() {
   const requestMethod = document.getElementById('requestMethod');
   const requestUrl = document.getElementById('requestUrl');
   const requestHeaders = document.getElementById('requestHeaders');
   const requestBody = document.getElementById('requestBody');
+  const responseOutput = document.getElementById('responseOutput');
+  const sendRequestBtn = document.getElementById('sendRequestBtn');
+  const clearRequestBtn = document.getElementById('clearRequestBtn');
+  const copyResponseBtn = document.getElementById('copyResponseBtn');
   
-  // 从存储中恢复HTTP请求工具的状态
-  chrome.storage.local.get({
-    httpTool: {
-      method: 'GET',
-      url: '',
-      headers: '',
-      body: ''
-    }
-  }, function(items) {
-    requestMethod.value = items.httpTool.method;
-    requestUrl.value = items.httpTool.url;
-    requestHeaders.value = items.httpTool.headers;
-    requestBody.value = items.httpTool.body;
-  });
-
-  // 保存HTTP请求工具的状态
-  function saveHttpToolState() {
-    const state = {
-      method: requestMethod.value,
-      url: requestUrl.value,
-      headers: requestHeaders.value,
-      body: requestBody.value
-    };
-    chrome.storage.local.set({ httpTool: state });
+  if (!requestMethod || !requestUrl || !requestHeaders || !requestBody || !responseOutput || !sendRequestBtn || !clearRequestBtn) {
+    console.error('HTTP请求工具组件未找到');
+    return;
   }
-
-  // 监听输入变化并保存状态
-  requestMethod.addEventListener('change', saveHttpToolState);
-  requestUrl.addEventListener('input', saveHttpToolState);
-  requestHeaders.addEventListener('input', saveHttpToolState);
-  requestBody.addEventListener('input', saveHttpToolState);
-
-  document.getElementById('sendRequestBtn').addEventListener('click', async () => {
-    const method = document.getElementById('requestMethod').value;
-    const url = document.getElementById('requestUrl').value;
-    let headers = {};
-    const headersText = document.getElementById('requestHeaders').value;
-    const body = document.getElementById('requestBody').value;
-    const responseOutput = document.getElementById('responseOutput');
-
-    // 验证URL
+  
+  // 加载保存的请求数据
+  loadRequestData();
+  
+  // 发送请求按钮点击事件
+  sendRequestBtn.addEventListener('click', function() {
+    const method = requestMethod.value;
+    const url = requestUrl.value.trim();
+    
     if (!url) {
-      responseOutput.value = '错误：请输入有效的URL';
+      showToast('请输入请求URL', 'error');
       return;
     }
-
+    
+    // 解析请求头
+    let headers = {};
     try {
-      // 解析headers
+      const headersText = requestHeaders.value.trim();
       if (headersText) {
-        try {
-          headers = JSON.parse(headersText);
-        } catch (e) {
-          responseOutput.value = '错误：请求头格式不正确，请使用有效的JSON格式';
-          return;
-        }
+        headers = JSON.parse(headersText);
       }
-
-      // 准备请求配置
-      const requestOptions = {
-        method: method,
-        headers: headers,
-        mode: 'cors',
-      };
-
-      // 如果有请求体且不是GET/HEAD请求，添加body
-      if (body && !['GET', 'HEAD'].includes(method)) {
-        requestOptions.body = body;
-      }
-
-      // 发送请求
-      responseOutput.value = '正在发送请求...';
-      const response = await fetch(url, requestOptions);
-      
-      // 获取响应头
-      const responseHeaders = {};
-      response.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-
-      // 获取响应体
-      let responseBody;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        responseBody = await response.json();
-      } else {
-        responseBody = await response.text();
-      }
-
-      // 格式化输出
-      const result = {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-        body: responseBody
-      };
-
-      responseOutput.value = JSON.stringify(result, null, 2);
     } catch (error) {
-      responseOutput.value = `错误：${error.message}`;
+      showToast('请求头格式错误，请使用有效的JSON格式', 'error');
+      return;
+    }
+    
+    // 准备请求选项
+    const options = {
+      method: method,
+      headers: headers
+    };
+    
+    // 添加请求体（对于非GET/HEAD请求）
+    if (method !== 'GET' && method !== 'HEAD') {
+      const bodyText = requestBody.value.trim();
+      if (bodyText) {
+        options.body = bodyText;
+      }
+    }
+    
+    // 保存当前请求数据
+    saveRequestData(method, url, requestHeaders.value, requestBody.value);
+    
+    // 显示加载状态（JSON格式）
+    responseOutput.value = JSON.stringify({
+      status: "loading",
+      message: "正在发送请求..."
+    }, null, 2);
+    
+    // 发送请求
+    fetch(url, options)
+      .then(response => {
+        // 获取响应头
+        const headers = {};
+        response.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        
+        // 检查响应类型
+        const contentType = response.headers.get('content-type') || '';
+        
+        // 处理不同类型的响应
+        if (contentType.includes('application/json')) {
+          return response.json().then(data => {
+            return {
+              status: response.status,
+              statusText: response.statusText,
+              headers: headers,
+              body: data
+            };
+          });
+        } else {
+          return response.text().then(text => {
+            return {
+              status: response.status,
+              statusText: response.statusText,
+              headers: headers,
+              body: text
+            };
+          });
+        }
+      })
+      .then(data => {
+        // 创建统一的JSON格式响应
+        const jsonResponse = {
+          status: data.status,
+          statusText: data.statusText,
+          headers: data.headers,
+          body: data.body
+        };
+        
+        // 格式化为美观的JSON字符串
+        responseOutput.value = JSON.stringify(jsonResponse, null, 2);
+      })
+      .catch(error => {
+        // 错误信息也以JSON格式显示
+        const errorResponse = {
+          error: true,
+          message: `请求失败: ${error.message}`
+        };
+        responseOutput.value = JSON.stringify(errorResponse, null, 2);
+      });
+  });
+  
+  // 清空按钮点击事件
+  clearRequestBtn.addEventListener('click', function() {
+    // 清空所有数据，包括请求数据和响应结果
+    resetRequestData();
+  });
+  
+  // 复制响应按钮点击事件
+  if (copyResponseBtn) {
+    copyResponseBtn.addEventListener('click', function() {
+      const output = responseOutput.value;
+      if (!output) {
+        showToast('没有可复制的内容', 'error');
+        return;
+      }
+      
+      navigator.clipboard.writeText(output).then(function() {
+        showToast('已复制到剪贴板', 'success');
+      }).catch(function(err) {
+        showToast('复制失败: ' + err, 'error');
+      });
+    });
+  }
+  
+  // 添加数据变更事件监听器，自动保存数据
+  requestMethod.addEventListener('change', function() {
+    saveRequestData(requestMethod.value, requestUrl.value, requestHeaders.value, requestBody.value);
+  });
+  
+  requestUrl.addEventListener('input', function() {
+    saveRequestData(requestMethod.value, requestUrl.value, requestHeaders.value, requestBody.value);
+  });
+  
+  requestHeaders.addEventListener('input', function() {
+    saveRequestData(requestMethod.value, requestUrl.value, requestHeaders.value, requestBody.value);
+  });
+  
+  requestBody.addEventListener('input', function() {
+    saveRequestData(requestMethod.value, requestUrl.value, requestHeaders.value, requestBody.value);
+  });
+}
+
+// 保存请求数据
+function saveRequestData(method, url, headers, body) {
+  const requestData = {
+    method: method,
+    url: url,
+    headers: headers,
+    body: body
+  };
+  
+  chrome.storage.local.set({ requestData: requestData }, function() {
+    if (chrome.runtime.lastError) {
+      console.error('保存请求数据失败:', chrome.runtime.lastError);
+      return;
+    }
+    console.log('请求数据已保存');
+  });
+}
+
+// 加载保存的请求数据
+function loadRequestData() {
+  chrome.storage.local.get({ requestData: null }, function(data) {
+    if (chrome.runtime.lastError) {
+      console.error('加载请求数据失败:', chrome.runtime.lastError);
+      return;
+    }
+    
+    if (data.requestData) {
+      const requestMethod = document.getElementById('requestMethod');
+      const requestUrl = document.getElementById('requestUrl');
+      const requestHeaders = document.getElementById('requestHeaders');
+      const requestBody = document.getElementById('requestBody');
+      
+      if (requestMethod && data.requestData.method) {
+        requestMethod.value = data.requestData.method;
+      }
+      
+      if (requestUrl && data.requestData.url) {
+        requestUrl.value = data.requestData.url;
+      }
+      
+      if (requestHeaders && data.requestData.headers) {
+        requestHeaders.value = data.requestData.headers;
+      }
+      
+      if (requestBody && data.requestData.body) {
+        requestBody.value = data.requestData.body;
+      }
+      
+      console.log('已加载保存的请求数据');
     }
   });
+} 
 
-  // 复制响应结果按钮
-  document.getElementById('copyResponseBtn').addEventListener('click', () => {
-    const responseOutput = document.getElementById('responseOutput');
-    responseOutput.select();
-    document.execCommand('copy');
-    
-    // 显示复制成功提示
-    const copyBtn = document.getElementById('copyResponseBtn');
-    const originalTitle = copyBtn.title;
-    copyBtn.title = '已复制!';
-    setTimeout(() => {
-      copyBtn.title = originalTitle;
-    }, 1500);
+// 重置请求数据
+function resetRequestData() {
+  const requestMethod = document.getElementById('requestMethod');
+  const requestUrl = document.getElementById('requestUrl');
+  const requestHeaders = document.getElementById('requestHeaders');
+  const requestBody = document.getElementById('requestBody');
+  const responseOutput = document.getElementById('responseOutput');
+  
+  // 重置为默认值
+  if (requestMethod) requestMethod.value = 'GET';
+  if (requestUrl) requestUrl.value = '';
+  if (requestHeaders) requestHeaders.value = '';
+  if (requestBody) requestBody.value = '';
+  if (responseOutput) responseOutput.value = '';
+  
+  // 从存储中删除保存的请求数据
+  chrome.storage.local.remove('requestData', function() {
+    if (chrome.runtime.lastError) {
+      console.error('删除请求数据失败:', chrome.runtime.lastError);
+      return;
+    }
+    console.log('请求数据已清空');
   });
-
-  // 清空按钮功能
-  document.getElementById('clearRequestBtn').addEventListener('click', () => {
-    // 清空所有输入框
-    requestMethod.value = 'GET';
-    requestUrl.value = '';
-    requestHeaders.value = '';
-    requestBody.value = '';
-    
-    // 保存清空后的状态
-    saveHttpToolState();
-  });
-}); 
+} 

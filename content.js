@@ -904,7 +904,8 @@ function searchWithAI(text, template = null) {
     prompt: '请解释以下内容:',
     actualModel: 'gpt-3.5-turbo',
     useMarkdown: true,
-    saveHistory: true
+    saveHistory: true,
+    maxChatHistory: 20 // 默认最大对话历史数量
   }, function(items) {
     chrome.storage.local.get({ apiKey: '' }, async function(localItems) {
       if (!localItems.apiKey) {
@@ -979,6 +980,13 @@ function searchWithAI(text, template = null) {
             question: finalPrompt,
             answer: response.content
           });
+          
+          // 限制对话历史数量
+          if (conversationHistory.length > items.maxChatHistory) {
+            // 只保留最近的maxChatHistory条记录
+            conversationHistory = conversationHistory.slice(-items.maxChatHistory);
+            console.log(`对话历史超过${items.maxChatHistory}条，已自动清理旧记录`);
+          }
 
           // 保存原始结果
           rawResult = response.content;
@@ -1272,11 +1280,14 @@ document.addEventListener('DOMContentLoaded', function() {
     console.error("无法发送加载完成消息:", error);
   }
   
+  // 初始化样式
   addMemoStyles();
   addContinueAskStyles();
+  addResizeStyles();
   
-  // 添加继续提问区域的样式
+  // 添加基础搜索结果样式
   const style = document.createElement('style');
+  style.id = 'ai-search-result-base-styles';
   style.textContent = `
     .ai-search-result {
       position: fixed;
@@ -1312,62 +1323,6 @@ document.addEventListener('DOMContentLoaded', function() {
       justify-content: center;
       min-height: 20vh;
       padding: 2vh 2vw;
-    }
-
-    .ai-continue-ask-area {
-      padding: 10px 15px;
-      border-top: 1px solid #eee;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      background: #f8f9fa;
-    }
-    
-    .ai-continue-ask-input {
-      flex: 1;
-      height: 36px;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      resize: none;
-      font-size: 14px;
-      line-height: 20px;
-      background: white;
-      overflow: hidden;
-      box-sizing: border-box;
-      -webkit-resize: none;  /* Safari 和 Chrome */
-      -moz-resize: none;    /* Firefox */
-      appearance: none;     /* 移除默认外观 */
-    }
-    
-    .ai-continue-ask-input:focus {
-      outline: none;
-      border-color: #1a73e8;
-      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
-    }
-    
-    .ai-continue-ask-button {
-      width: 80px;
-      padding: 8px 0;
-      background-color: #1a73e8;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background-color 0.2s;
-      height: 36px;
-      white-space: nowrap;
-      text-align: center;
-      box-sizing: border-box;
-    }
-    
-    .ai-continue-ask-button:hover {
-      background-color: #1557b0;
-    }
-    
-    .ai-continue-ask-button:active {
-      transform: scale(0.98);
     }
 
     @media (max-width: 768px) {
@@ -1770,7 +1725,8 @@ function addResizeStyles() {
       background: #f8f9fa;
       height: 56px;
       box-sizing: border-box;
-      z-index: 1000;
+      z-index: 1002;
+      pointer-events: auto;
     }
 
     .ai-continue-ask-input {
@@ -1785,6 +1741,7 @@ function addResizeStyles() {
       background: white;
       overflow: hidden;
       box-sizing: border-box;
+      pointer-events: auto;
     }
 
     .ai-continue-ask-button {
@@ -1798,6 +1755,7 @@ function addResizeStyles() {
       height: 36px;
       white-space: nowrap;
       flex-shrink: 0;
+      pointer-events: auto;
     }
 
     .ai-continue-ask-button:hover {
@@ -1818,6 +1776,7 @@ function addResizeStyles() {
       height: 50px;
       box-sizing: border-box;
       z-index: 1000;
+      pointer-events: auto;
     }
 
     .ai-search-result-footer > div:first-child {
@@ -1835,6 +1794,7 @@ function addResizeStyles() {
       flex-wrap: nowrap;
       overflow-x: auto;
       max-width: calc(100% - 100px);
+      pointer-events: auto;
     }
 
     .ai-search-result-format-toggle {
@@ -1843,6 +1803,7 @@ function addResizeStyles() {
       gap: 12px;
       flex-shrink: 0;
       margin-right: 12px;
+      pointer-events: auto;
     }
 
     .ai-search-result-format-toggle label {
@@ -1853,12 +1814,14 @@ function addResizeStyles() {
       cursor: pointer;
       font-size: 14px;
       color: #666;
+      pointer-events: auto;
     }
 
     .ai-search-result-rating-group {
       display: flex;
       gap: 8px;
       flex-shrink: 0;
+      pointer-events: auto;
     }
 
     .ai-search-result-action-button {
@@ -1876,6 +1839,7 @@ function addResizeStyles() {
       gap: 4px;
       transition: all 0.2s;
       min-width: fit-content;
+      pointer-events: auto;
     }
 
     .ai-search-result-resize-handle {

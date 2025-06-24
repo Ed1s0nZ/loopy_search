@@ -9,7 +9,8 @@
     "alarms",
     "scripting",
     "clipboardWrite",
-    "tabs"
+    "tabs",
+    "proxy"
   ],
   "action": {
     "default_popup": "popup.html",
