@@ -275,7 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const promptInput = document.getElementById('prompt');
             if (promptInput) {
               promptInput.value = template.content;
-              showToast('提示词已应用成功');
+              showToast('该提示词已应用至\'默认提示词前缀\'');
             }
           });
         }
@@ -969,18 +969,20 @@ document.addEventListener('DOMContentLoaded', function() {
     style.textContent = `
       /* 基础按钮样式 */
       .btn-primary {
-        background-color: #1a73e8;
+        background: linear-gradient(135deg, #4776E6 0%, #8E54E9 100%);
         color: white;
         border: none;
         border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
         font-size: 14px;
-        transition: background-color 0.3s;
+        transition: all 0.3s ease;
       }
 
       .btn-primary:hover {
-        background-color: #1557b0;
+        background: linear-gradient(135deg, #3a61c9 0%, #7a46cc 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
       }
 
       .btn-outline {
@@ -1057,7 +1059,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       /* 应用按钮样式 */
       .btn-apply {
-        background: #1a73e8;
+        background: linear-gradient(135deg, #4776E6 0%, #8E54E9 100%);
         color: white;
         border: none;
         padding: 6px 12px;
@@ -1065,11 +1067,13 @@ document.addEventListener('DOMContentLoaded', function() {
         font-size: 13px;
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.3s ease;
       }
 
       .btn-apply:hover {
-        background: #1557b0;
+        background: linear-gradient(135deg, #3a61c9 0%, #7a46cc 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
       }
 
       .modal-footer {
@@ -2265,7 +2269,8 @@ document.addEventListener('DOMContentLoaded', function() {
       // 获取下拉菜单
       const dropdown = document.querySelector('.chat-dropdown');
       
-      if (!dropdown) {
+      let localDropdown = dropdown;
+      if (!localDropdown) {
         // 查找历史对话按钮
         const historyBtn = document.querySelector('.history-chat-btn');
         
@@ -2276,19 +2281,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // 创建下拉菜单容器
-        const dropdown = document.createElement('div');
-        dropdown.className = 'chat-dropdown';
-        dropdown.style.display = 'none';
+        localDropdown = document.createElement('div');
+        localDropdown.className = 'chat-dropdown';
+        localDropdown.style.display = 'none';
         
         // 添加按钮点击事件
         historyBtn.addEventListener('click', function(e) {
           e.stopPropagation();
-          dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+          localDropdown.style.display = localDropdown.style.display === 'none' ? 'block' : 'none';
           
           // 点击其他地方关闭下拉菜单
-          if (dropdown.style.display === 'block') {
+          if (localDropdown.style.display === 'block') {
             const closeDropdown = function() {
-              dropdown.style.display = 'none';
+              localDropdown.style.display = 'none';
               document.removeEventListener('click', closeDropdown);
             };
             setTimeout(() => {
@@ -2300,7 +2305,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 添加到页面
         const container = document.querySelector('.chat-container');
         if (container) {
-          container.appendChild(dropdown);
+          container.appendChild(localDropdown);
         }
         
         // 添加下拉菜单样式
@@ -2396,13 +2401,18 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       // 更新下拉菜单内容
-      dropdown.innerHTML = '';
+      if (!localDropdown) {
+        console.error('找不到历史对话下拉菜单');
+        return;
+      }
+      
+      localDropdown.innerHTML = '';
       
       if (chatList.length === 0) {
         const emptyMsg = document.createElement('div');
         emptyMsg.className = 'chat-dropdown-empty';
         emptyMsg.textContent = '暂无历史对话';
-        dropdown.appendChild(emptyMsg);
+        localDropdown.appendChild(emptyMsg);
         return;
       }
       
@@ -2499,7 +2509,7 @@ document.addEventListener('DOMContentLoaded', function() {
         item.appendChild(titleSpan);
         item.appendChild(dateSpan);
         item.appendChild(deleteBtn);
-        dropdown.appendChild(item);
+        localDropdown.appendChild(item);
       });
     }
     
@@ -3109,6 +3119,26 @@ document.addEventListener('DOMContentLoaded', function() {
         <li>点击"保存设置"按钮应用配置</li>
         <li>点击"测试连接"验证代理是否正常工作</li>
       </ol>
+      
+      <h3>代理模式解释</h3>
+      <p>本扩展支持以下代理模式：</p>
+      <ul style="padding-left: 20px; line-height: 1.5;">
+        <li><b>直接连接</b> - 不使用任何代理，直接连接到目标服务器</li>
+        <li><b>自动检测</b> - 尝试自动检测网络的代理设置</li>
+        <li><b>PAC脚本</b> - 使用PAC(代理自动配置)脚本动态确定使用哪个代理</li>
+        <li><b>固定服务器</b> - 使用手动配置的固定代理服务器</li>
+        <li><b>系统代理</b> - 使用操作系统配置的代理设置</li>
+      </ul>
+      
+      <h3>实现原理</h3>
+      <p>本扩展的代理功能基于Chrome扩展API实现：</p>
+      <ul style="padding-left: 20px; line-height: 1.5;">
+        <li>使用<code>chrome.proxy</code>API管理浏览器的代理设置</li>
+        <li>代理配置应用于所有由扩展发起的网络请求</li>
+        <li>支持HTTP/HTTPS代理和SOCKS4/5代理</li>
+        <li>可以设置特定网址的绕过规则，避免某些网站通过代理访问</li>
+        <li>配置保存在扩展的本地存储中，可以在不同会话间保持</li>
+      </ul>
       
       <h3>禁用代理时编辑设置</h3>
       <p>为了方便配置，即使在代理禁用状态下，您也可以编辑以下字段：</p>
