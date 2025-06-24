@@ -654,7 +654,7 @@
     }
 
     /* markdown美化 */
-    .message-content pre, .message-content code {
+    .message-content pre {
       background: #f5f5f5;
       border-radius: 4px;
       padding: 6px 10px;
@@ -676,15 +676,19 @@
       margin: 0;
       border-radius: 0;
       border: none;
+      white-space: pre;
+      display: block;
+      overflow-x: auto;
     }
 
-    .message-content code {
+    .message-content code:not(pre code) {
       display: inline;
       padding: 2px 4px;
       font-size: 13px;
       background: #f5f5f5;
       border-radius: 3px;
       white-space: pre-wrap;
+      font-family: 'Fira Mono', 'Consolas', monospace;
     }
 
     .message-content ul, .message-content ol {
