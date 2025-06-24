@@ -70,6 +70,72 @@ style.textContent = `
   .toast-error {
     background-color: #f44336;
   }
+
+  /* 导航容器样式 */
+  .nav-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 0;
+  }
+
+  .nav-tabs {
+    display: flex;
+    border-bottom: 1px solid #eee;
+    overflow-x: auto;
+    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+    margin: 0 40px;  /* 为按钮留出空间 */
+    padding: 0 10px;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari, Opera */
+  }
+
+  .scroll-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 16px;
+    background: #f0f7ff;
+    color: #1a73e8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all 0.2s;
+    z-index: 1;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .scroll-button:hover {
+    background: #e8f1ff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .scroll-button:active {
+    transform: translateY(-50%) scale(0.95);
+  }
+
+  .scroll-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .scroll-left {
+    left: 4px;
+  }
+
+  .scroll-right {
+    right: 4px;
+  }
 `;
 
 // 检查并移除可能存在的重复样式
@@ -1092,14 +1158,6 @@ document.addEventListener('DOMContentLoaded', function() {
         background: #1a73e8;
         border-radius: 2px;
       }
-
-      /* 导航容器样式 */
-      .nav-tabs {
-        display: flex;
-        border-bottom: 1px solid #eee;
-        margin-bottom: 20px;
-        padding: 0 10px;     /* 添加水平内边距 */
-      }
     `;
     document.head.appendChild(style);
 
@@ -1556,19 +1614,75 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 初始化标签页切换功能
   function initializeTabs() {
+    // 创建导航容器
+    const navContainer = document.createElement('div');
+    navContainer.className = 'nav-container';
+
+    // 获取现有的导航栏
+    const navTabs = document.querySelector('.nav-tabs');
+    if (!navTabs) return;
+
+    // 从原位置移除导航栏
+    navTabs.parentNode.removeChild(navTabs);
+
+    // 创建左右滚动按钮
+    const scrollLeftBtn = document.createElement('button');
+    scrollLeftBtn.className = 'scroll-button scroll-left';
+    scrollLeftBtn.innerHTML = '&lt;';
+    scrollLeftBtn.setAttribute('aria-label', '向左滚动');
+
+    const scrollRightBtn = document.createElement('button');
+    scrollRightBtn.className = 'scroll-button scroll-right';
+    scrollRightBtn.innerHTML = '&gt;';
+    scrollRightBtn.setAttribute('aria-label', '向右滚动');
+
+    // 将所有元素添加到导航容器
+    navContainer.appendChild(scrollLeftBtn);
+    navContainer.appendChild(navTabs);
+    navContainer.appendChild(scrollRightBtn);
+
+    // 获取所有标签页内容
+    const allTabContents = document.querySelectorAll('.tab-content');
+    
+    // 将导航容器插入到第一个标签页内容之前
+    if (allTabContents.length > 0) {
+      allTabContents[0].parentNode.insertBefore(navContainer, allTabContents[0]);
+    }
+
+    // 滚动处理函数
+    function updateScrollButtons() {
+      const scrollLeft = navTabs.scrollLeft;
+      const maxScroll = navTabs.scrollWidth - navTabs.clientWidth;
+      
+      scrollLeftBtn.classList.toggle('disabled', scrollLeft <= 0);
+      scrollRightBtn.classList.toggle('disabled', scrollLeft >= maxScroll);
+    }
+
+    // 点击滚动按钮处理
+    scrollLeftBtn.addEventListener('click', () => {
+      navTabs.scrollBy({ left: -200, behavior: 'smooth' });
+    });
+
+    scrollRightBtn.addEventListener('click', () => {
+      navTabs.scrollBy({ left: 200, behavior: 'smooth' });
+    });
+
+    // 监听滚动事件
+    navTabs.addEventListener('scroll', updateScrollButtons);
+    window.addEventListener('resize', updateScrollButtons);
+
+    // 初始化按钮状态
+    updateScrollButtons();
+
+    // 标签切换逻辑
     const tabs = document.querySelectorAll('.nav-tab');
-    const tabContents = document.querySelectorAll('.tab-content');
 
     tabs.forEach(tab => {
       tab.addEventListener('click', function() {
-        // 移除所有标签页的active类
         tabs.forEach(t => t.classList.remove('active'));
-        // 移除所有内容区域的active类
-        tabContents.forEach(content => content.classList.remove('active'));
-
-        // 激活当前点击的标签页
+        allTabContents.forEach(content => content.classList.remove('active'));
+        
         this.classList.add('active');
-        // 激活对应的内容区域
         const tabId = this.getAttribute('data-tab');
         const content = document.getElementById(tabId);
         if (content) {
