@@ -1981,6 +1981,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }).join('');
             break;
             
+          case 'utf8':
+            // UTF-8编码，将字符转换为UTF-8字节序列的十六进制表示
+            const encoder = new TextEncoder();
+            const utf8Bytes = encoder.encode(input);
+            result = Array.from(utf8Bytes).map(b => 
+              '%' + b.toString(16).padStart(2, '0').toUpperCase()
+            ).join('');
+            break;
+            
           case 'base64':
             result = btoa(unescape(encodeURIComponent(input)));
             break;
@@ -2005,6 +2014,12 @@ document.addEventListener('DOMContentLoaded', function() {
             ).join('');
             break;
             
+          case 'binary':
+            result = Array.from(input).map(c => 
+              c.charCodeAt(0).toString(2).padStart(8, '0')
+            ).join(' ');
+            break;
+            
           case 'ascii':
             result = Array.from(input).map(c => c.charCodeAt(0)).join(' ');
             break;
@@ -2019,6 +2034,37 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (e) {
               throw new Error('无效的日期格式');
             }
+            break;
+            
+
+            
+          case 'base32':
+            // Base32编码
+            const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            const base32Bytes = new TextEncoder().encode(input);
+            let bits = 0;
+            let value = 0;
+            let output = '';
+            
+            for (let i = 0; i < base32Bytes.length; i++) {
+              value = (value << 8) | base32Bytes[i];
+              bits += 8;
+              while (bits >= 5) {
+                output += alphabet[(value >>> (bits - 5)) & 31];
+                bits -= 5;
+              }
+            }
+            
+            if (bits > 0) {
+              output += alphabet[(value << (5 - bits)) & 31];
+            }
+            
+            // 添加填充
+            while (output.length % 8 !== 0) {
+              output += '=';
+            }
+            
+            result = output;
             break;
         }
         
@@ -2048,8 +2094,44 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             break;
             
+          case 'utf8':
+            // UTF-8解码，将%XX格式的十六进制字节序列转换回字符串
+            try {
+              // 处理%XX格式
+              if (input.includes('%')) {
+                const bytes = [];
+                let i = 0;
+                while (i < input.length) {
+                  if (input[i] === '%') {
+                    bytes.push(parseInt(input.substr(i + 1, 2), 16));
+                    i += 3;
+                  } else {
+                    bytes.push(input.charCodeAt(i));
+                    i++;
+                  }
+                }
+                result = new TextDecoder().decode(new Uint8Array(bytes));
+              } else {
+                // 尝试直接解码十六进制字符串
+                const bytes = [];
+                for (let i = 0; i < input.length; i += 2) {
+                  if (i + 1 < input.length) {
+                    bytes.push(parseInt(input.substr(i, 2), 16));
+                  }
+                }
+                result = new TextDecoder().decode(new Uint8Array(bytes));
+              }
+            } catch (e) {
+              throw new Error('无效的UTF-8编码: ' + e.message);
+            }
+            break;
+            
           case 'base64':
-            result = decodeURIComponent(escape(atob(input)));
+            try {
+              result = decodeURIComponent(escape(atob(input)));
+            } catch (e) {
+              throw new Error('无效的Base64编码: ' + e.message);
+            }
             break;
             
           case 'url':
@@ -2067,15 +2149,34 @@ document.addEventListener('DOMContentLoaded', function() {
             break;
             
           case 'hex':
-            result = input.match(/.{1,2}/g)
-              .map(byte => String.fromCharCode(parseInt(byte, 16)))
-              .join('');
+            try {
+              result = input.replace(/\s+/g, '') // 移除所有空白字符
+                .match(/.{1,2}/g)
+                .map(byte => String.fromCharCode(parseInt(byte, 16)))
+                .join('');
+            } catch (e) {
+              throw new Error('无效的十六进制编码: ' + e.message);
+            }
+            break;
+            
+          case 'binary':
+            try {
+              result = input.split(/\s+/)
+                .map(bin => String.fromCharCode(parseInt(bin, 2)))
+                .join('');
+            } catch (e) {
+              throw new Error('无效的二进制编码: ' + e.message);
+            }
             break;
             
           case 'ascii':
-            result = input.split(' ')
-              .map(code => String.fromCharCode(parseInt(code, 10)))
-              .join('');
+            try {
+              result = input.split(/\s+/)
+                .map(code => String.fromCharCode(parseInt(code, 10)))
+                .join('');
+            } catch (e) {
+              throw new Error('无效的ASCII编码: ' + e.message);
+            }
             break;
             
           case 'timestamp':
@@ -2085,6 +2186,39 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const date = new Date(timestamp * 1000);
             result = date.toLocaleString();
+            break;
+            
+
+            
+          case 'base32':
+            // Base32解码
+            try {
+              const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+              let cleanInput = input.toUpperCase().replace(/=+$/, '');
+              let bits = 0;
+              let value = 0;
+              let output = [];
+              
+              for (let i = 0; i < cleanInput.length; i++) {
+                const char = cleanInput[i];
+                const charValue = alphabet.indexOf(char);
+                if (charValue === -1) {
+                  throw new Error('无效的Base32字符: ' + char);
+                }
+                
+                value = (value << 5) | charValue;
+                bits += 5;
+                
+                if (bits >= 8) {
+                  output.push((value >>> (bits - 8)) & 255);
+                  bits -= 8;
+                }
+              }
+              
+              result = new TextDecoder().decode(new Uint8Array(output));
+            } catch (e) {
+              throw new Error('无效的Base32编码: ' + e.message);
+            }
             break;
         }
         
