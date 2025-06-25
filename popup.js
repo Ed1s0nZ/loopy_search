@@ -2186,14 +2186,16 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
         
-        // 构建消息列表
+        // 构建消息列表 - 确保包含完整的对话历史
         const apiMessages = [...messages];
         
-        // 添加系统消息
+        // 添加系统消息，强调需要考虑上下文
         apiMessages.unshift({
           role: 'system',
-          content: '你是一个有用的AI助手，提供准确、有帮助的回答。'
+          content: '你是一个有用的AI助手，提供准确、有帮助的回答。请根据完整的对话历史回答用户的问题，保持上下文连贯性。'
         });
+        
+        console.log('发送API请求，包含完整对话历史，消息数量:', apiMessages.length);
         
         // 发送API请求
         chrome.runtime.sendMessage({
@@ -2290,6 +2292,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // 添加按钮点击事件
         historyBtn.addEventListener('click', function(e) {
           e.stopPropagation();
+          
+          // 每次点击历史对话按钮时重新加载对话列表
+          loadChatList();
+          
           localDropdown.style.display = localDropdown.style.display === 'none' ? 'block' : 'none';
           
           // 点击其他地方关闭下拉菜单
@@ -2500,12 +2506,10 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         });
         
-        // 点击删除按钮删除对话
+        // 点击删除按钮直接删除对话，不显示确认框
         deleteBtn.addEventListener('click', function(e) {
           e.stopPropagation();
-          if (confirm('确定要删除此对话吗？')) {
-            deleteChat(chat.id);
-          }
+          deleteChat(chat.id);
         });
         
         item.appendChild(titleSpan);
@@ -2528,8 +2532,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // 加载对话ID
         currentChatId = chat.id;
         
-        // 加载消息
-        messages = chat.messages;
+        // 加载消息 - 确保深拷贝，避免引用问题
+        messages = JSON.parse(JSON.stringify(chat.messages));
         
         // 清空聊天区域
         chatMessages.innerHTML = '';
@@ -2549,7 +2553,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 更新UI
         updateChatListUI();
         
-        console.log('已加载ID为', chatId, '的对话，消息数量:', messages.length);
+        console.log('已加载ID为', chatId, '的对话，消息数量:', messages.length, '内容:', messages);
       } catch (e) {
         console.error('加载对话时出错:', e);
         showToast('加载对话时出错', 'error');
@@ -2609,13 +2613,13 @@ document.addEventListener('DOMContentLoaded', function() {
       // 清除本地存储的lastChat
       chrome.storage.local.remove('lastChat', function() {
         console.log('已清除上次对话，开始新对话');
+        
+        // 重新加载对话列表，确保UI更新
+        loadChatList();
       });
       
       // 更新当前对话长度
       updateContextLength();
-      
-      // 更新UI
-      updateChatListUI();
     }
     
     // 加载上一次的对话
