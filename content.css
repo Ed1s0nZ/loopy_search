@@ -171,6 +171,10 @@
   word-break: break-all;
 }
 
+.ai-search-result-content {
+  white-space: pre-wrap; /* 确保内容中的换行符被保留 */
+}
+
 .ai-search-result-content h1 {
   font-size: 1.5em;
   margin-top: 16px;

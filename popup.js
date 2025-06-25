@@ -2276,8 +2276,11 @@ document.addEventListener('DOMContentLoaded', function() {
       // 生成当前时间戳
       const currentTime = Date.now();
       
+      // 确保消息中的换行符被正确处理
+      const processedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      
       // 添加用户消息到界面
-      addMessage(text, 'user', false, currentTime);
+      addMessage(processedText, 'user', false, currentTime);
       
       // 清空输入框
       chatInput.value = '';
@@ -2294,7 +2297,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // 添加用户消息到消息列表
       messages.push({ 
         role: 'user', 
-        content: text,
+        content: processedText,
         timestamp: currentTime
       });
       
@@ -2887,6 +2890,8 @@ document.addEventListener('DOMContentLoaded', function() {
           messageContent.textContent = content;
         }
       } else {
+        // 用户消息需要保留换行符
+        messageContent.style.whiteSpace = 'pre-wrap';
         messageContent.textContent = content;
       }
       

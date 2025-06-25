@@ -374,7 +374,9 @@ function createAISearchResultWindow() {
       e.preventDefault();
       const newQuestion = this.value.trim();
       if (newQuestion) {
-        const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${newQuestion}`;
+        // 保留用户输入中的换行符
+        const formattedQuestion = newQuestion.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${formattedQuestion}`;
         this.value = '';
         // 显示加载状态
         showLoadingState('正在思考中...');
@@ -389,7 +391,9 @@ function createAISearchResultWindow() {
   continueAskButton.addEventListener('click', function() {
     const newQuestion = continueAskInput.value.trim();
     if (newQuestion) {
-      const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${newQuestion}`;
+      // 保留用户输入中的换行符
+      const formattedQuestion = newQuestion.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const contextPrompt = `基于之前的对话内容：\n${rawResult}\n\n新的问题：${formattedQuestion}`;
       continueAskInput.value = '';
       // 显示加载状态
       showLoadingState('正在思考中...');
@@ -918,7 +922,9 @@ function searchWithAI(text, template = null) {
         let messages = [];
         if (text.startsWith('基于之前的对话内容')) {
           // 继续提问时，使用完整的对话历史
-          const newQuestion = text.replace('基于之前的对话内容：\n', '').split('\n\n新的问题：')[1];
+          // 修复：确保换行符被正确保留
+          const parts = text.replace('基于之前的对话内容：\n', '').split('\n\n新的问题：');
+          const newQuestion = parts.length > 1 ? parts[1] : '';
           
           // 添加系统角色消息
           messages.push({
@@ -941,13 +947,15 @@ function searchWithAI(text, template = null) {
           // 添加新问题
           messages.push({
             role: 'user',
-            content: newQuestion
+            content: newQuestion.replace(/\r\n/g, '\n').replace(/\r/g, '\n') // 确保换行符被正确处理
           });
 
           finalPrompt = newQuestion; // 用于保存历史
         } else {
           // 新对话
-          const promptText = template ? template.content + '\n' + text : items.prompt + '\n' + text;
+          // 确保文本中的换行符被正确处理
+          const processedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+          const promptText = template ? template.content + '\n' + processedText : items.prompt + '\n' + processedText;
           messages = [
             {
               role: 'user',
