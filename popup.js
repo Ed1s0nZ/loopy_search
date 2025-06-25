@@ -3002,10 +3002,10 @@ document.addEventListener('DOMContentLoaded', function() {
         proxyStatus.style.color = '#666';
         proxyStatus.style.display = 'block';
         
-        // 5秒后隐藏状态信息
+        // 15秒后隐藏状态信息
         setTimeout(function() {
           proxyStatus.style.display = 'none';
-        }, 5000);
+        }, 15000); // 统一设置为15秒
       } else {
         // 如果启用代理，清除状态显示
         proxyStatus.style.display = 'none';
@@ -3358,10 +3358,10 @@ document.addEventListener('DOMContentLoaded', function() {
           proxyStatus.style.display = 'block';
           proxyStatus.style.color = '#34a853';
           
-          // 3秒后隐藏消息
+          // 15秒后隐藏消息
           setTimeout(function() {
             proxyStatus.style.display = 'none';
-          }, 3000);
+          }, 15000); // 统一设置为15秒
         }
       } else {
         // 如果正在测试连接，只显示Toast消息
@@ -3519,7 +3519,7 @@ document.addEventListener('DOMContentLoaded', function() {
       window.proxyStatusTimer = setTimeout(function() {
         proxyStatus.style.display = 'none';
         window.proxyStatusTimer = null;
-      }, 15000);
+      }, 15000); // 统一设置为15秒
       return;
     }
     
@@ -3577,49 +3577,184 @@ document.addEventListener('DOMContentLoaded', function() {
               return response.json();
             });
             
-            // 尝试所有可能的IP检测服务，包括超时处理
-            Promise.race([
-              Promise.any([fetchHttpbin, fetchIpify]).catch(err => {
-                console.error('所有IP检测服务都失败:', err);
-                throw new Error('无法连接到IP检测服务，请检查网络或代理设置');
-              }),
-              timeoutPromise
-            ])
-            .then(data => {
-              // 提取IP地址（适配不同的API响应格式）
-              const ip = data.origin || data.ip || JSON.stringify(data);
-              
-              // 显示成功消息和IP地址（可帮助确认是否通过了代理）
-              if (proxyEnabled) {
-                proxyStatus.innerHTML = `✓ 连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">如果此IP与您的代理服务器IP一致，说明代理正常工作</span>`;
-              } else {
-                proxyStatus.innerHTML = `✓ 直接连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">这是您的真实IP地址，因为代理未启用</span>`;
-              }
-              proxyStatus.style.color = '#34a853';
-              
-              // 使用全局变量存储定时器ID，以便后续可以清除
-              window.proxyStatusTimer = setTimeout(function() {
-                proxyStatus.style.display = 'none';
-                window.proxyStatusTimer = null;
-              }, 30000); // 延长到30秒，确保用户有足够时间查看
+            // 添加额外的备用IP检测服务
+            const fetchIpinfo = fetch('https://ipinfo.io/json', {
+              method: 'GET',
+              cache: 'no-store',
+              mode: 'cors'
             })
-            .catch(error => {
-              // 连接失败
-              console.error('代理测试失败:', error);
-              
-              if (proxyEnabled) {
-                proxyStatus.innerHTML = `✗ 代理连接测试失败: ${error.message}<br>请检查代理服务器是否可用`;
-              } else {
-                proxyStatus.innerHTML = `✗ 直接连接测试失败: ${error.message}<br>请检查您的网络连接`;
-              }
-              proxyStatus.style.color = '#ea4335';
-              
-              // 使用全局变量存储定时器ID，以便后续可以清除
-              window.proxyStatusTimer = setTimeout(function() {
-                proxyStatus.style.display = 'none';
-                window.proxyStatusTimer = null;
-              }, 30000); // 延长到30秒，确保用户有足够时间查看错误信息
+            .then(response => {
+              if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+              return response.json();
             });
+            
+                          // 创建多个检查连通性的请求，使用多个常用网站提高可靠性
+              const connectivityChecks = [
+                // Google favicon
+                fetch('https://www.google.com/favicon.ico', {
+                  method: 'HEAD',
+                  cache: 'no-store',
+                  mode: 'no-cors'
+                }).then(() => true).catch(() => false),
+                
+                // Microsoft favicon
+                fetch('https://www.microsoft.com/favicon.ico', {
+                  method: 'HEAD',
+                  cache: 'no-store',
+                  mode: 'no-cors'
+                }).then(() => true).catch(() => false),
+                
+                // Cloudflare
+                fetch('https://www.cloudflare.com/favicon.ico', {
+                  method: 'HEAD',
+                  cache: 'no-store',
+                  mode: 'no-cors'
+                }).then(() => true).catch(() => false)
+              ];
+              
+              // 只要有一个请求成功，就认为网络连接正常
+              const connectivityCheck = Promise.any(connectivityChecks)
+                .then(() => true)
+                .catch(() => false);
+              
+              // 尝试所有可能的IP检测服务，包括超时处理
+              Promise.race([
+                Promise.any([fetchHttpbin, fetchIpify, fetchIpinfo]).catch(err => {
+                  console.error('所有IP检测服务都失败:', err);
+                  
+                  // 检查错误信息中是否包含特定的标记，表明可能是被代理拦截
+                  const errorMsg = err.toString().toLowerCase();
+                  if (errorMsg.includes('unexpected token') || 
+                      errorMsg.includes('syntax error') || 
+                      errorMsg.includes('failed to fetch') ||
+                      errorMsg.includes('<')) {
+                    throw new Error('IP检测服务可能被代理服务器拦截');
+                  }
+                  
+                  throw new Error('无法连接到IP检测服务，请检查网络或代理设置');
+                }),
+                timeoutPromise
+              ])
+              .then(data => {
+                // 提取IP地址（适配不同的API响应格式）
+                let ip = '';
+                
+                // 处理不同服务的响应格式
+                if (data.origin) {
+                  // httpbin.org格式
+                  ip = data.origin;
+                } else if (data.ip) {
+                  // ipify.org格式
+                  ip = data.ip;
+                } else if (data.ip && typeof data.ip === 'string') {
+                  // ipinfo.io格式
+                  ip = data.ip;
+                } else {
+                  // 未知格式，尝试从JSON中提取
+                  const dataStr = JSON.stringify(data);
+                  // 尝试匹配IP地址格式
+                  const ipMatch = dataStr.match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/);
+                  if (ipMatch) {
+                    ip = ipMatch[0];
+                  } else {
+                    ip = '未能识别的IP格式: ' + dataStr.substring(0, 50);
+                  }
+                }
+                
+                // 显示成功消息和IP地址（可帮助确认是否通过了代理）
+                if (proxyEnabled) {
+                  proxyStatus.innerHTML = `✓ 连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">如果此IP与您的代理服务器IP一致，说明代理正常工作</span>`;
+                } else {
+                  proxyStatus.innerHTML = `✓ 直接连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">这是您的真实IP地址，因为代理未启用</span>`;
+                }
+                proxyStatus.style.color = '#34a853';
+                
+                // 使用全局变量存储定时器ID，以便后续可以清除
+                window.proxyStatusTimer = setTimeout(function() {
+                  proxyStatus.style.display = 'none';
+                  window.proxyStatusTimer = null;
+                }, 15000); // 统一设置为15秒
+              })
+              .catch(error => {
+                // 连接失败，但我们需要检查是否只是IP检测服务被拦截
+                console.error('代理测试失败:', error);
+                
+                // 检查是否可以连接到其他网站
+                connectivityCheck.then(canConnect => {
+                  if (canConnect) {
+                    // 如果可以连接到其他网站，说明代理可能工作正常，只是IP检测服务被拦截
+                    if (error.message.includes('IP检测服务可能被代理服务器拦截')) {
+                      if (proxyEnabled) {
+                        proxyStatus.innerHTML = `
+                          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <span style="color: #f4b400; font-size: 20px; margin-right: 8px;">⚠️</span>
+                            <span style="color: #1a73e8; font-weight: 500;">代理连接可能正常</span>
+                          </div>
+                          <div style="margin-bottom: 8px;">IP检测服务被拦截，无法获取IP地址</div>
+                          <div style="font-size: 13px; color: #666;">
+                            您的代理服务器似乎拦截了IP检测服务，但能够连接到其他常用网站。<br>
+                            这通常意味着代理工作正常，只是无法显示您的IP地址。
+                          </div>
+                        `;
+                      } else {
+                        proxyStatus.innerHTML = `
+                          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <span style="color: #f4b400; font-size: 20px; margin-right: 8px;">⚠️</span>
+                            <span style="color: #1a73e8; font-weight: 500;">连接可能正常</span>
+                          </div>
+                          <div style="margin-bottom: 8px;">IP检测服务被拦截，无法获取IP地址</div>
+                          <div style="font-size: 13px; color: #666;">
+                            您的网络似乎拦截了IP检测服务，但能够连接到其他常用网站。
+                          </div>
+                        `;
+                      }
+                      proxyStatus.style.color = '#1a73e8';
+                    } else {
+                      // 其他错误，但网络连接正常
+                      if (proxyEnabled) {
+                        proxyStatus.innerHTML = `
+                          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <span style="color: #f4b400; font-size: 20px; margin-right: 8px;">⚠️</span>
+                            <span style="color: #1a73e8; font-weight: 500;">代理连接可能正常</span>
+                          </div>
+                          <div style="margin-bottom: 8px;">无法获取IP地址，但能连接到其他网站</div>
+                          <div style="font-size: 13px; color: #666;">
+                            我们尝试连接到Google、Microsoft和Cloudflare等多个网站，至少有一个连接成功。<br>
+                            错误信息: ${error.message}
+                          </div>
+                        `;
+                      } else {
+                        proxyStatus.innerHTML = `
+                          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                            <span style="color: #f4b400; font-size: 20px; margin-right: 8px;">⚠️</span>
+                            <span style="color: #1a73e8; font-weight: 500;">连接可能正常</span>
+                          </div>
+                          <div style="margin-bottom: 8px;">无法获取IP地址，但能连接到其他网站</div>
+                          <div style="font-size: 13px; color: #666;">
+                            我们尝试连接到Google、Microsoft和Cloudflare等多个网站，至少有一个连接成功。<br>
+                            错误信息: ${error.message}
+                          </div>
+                        `;
+                      }
+                      proxyStatus.style.color = '#1a73e8';
+                    }
+                  } else {
+                    // 如果无法连接到其他网站，说明代理可能确实有问题
+                    if (proxyEnabled) {
+                      proxyStatus.innerHTML = `✗ 代理连接测试失败: ${error.message}<br>请检查代理服务器是否可用`;
+                    } else {
+                      proxyStatus.innerHTML = `✗ 直接连接测试失败: ${error.message}<br>请检查您的网络连接`;
+                    }
+                    proxyStatus.style.color = '#ea4335';
+                  }
+                  
+                  // 使用全局变量存储定时器ID，以便后续可以清除
+                  window.proxyStatusTimer = setTimeout(function() {
+                    proxyStatus.style.display = 'none';
+                    window.proxyStatusTimer = null;
+                  }, 15000); // 统一设置为15秒
+                });
+              });
           } catch (err) {
             console.error('执行测试连接过程中出错:', err);
             proxyStatus.innerHTML = `✗ 测试过程出错: ${err.message}`;
@@ -3628,7 +3763,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.proxyStatusTimer = setTimeout(function() {
               proxyStatus.style.display = 'none';
               window.proxyStatusTimer = null;
-            }, 30000);
+            }, 15000); // 统一设置为15秒
           }
         }, 1000); // 增加延迟，确保状态显示更新
       } catch (err) {
