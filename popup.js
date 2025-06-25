@@ -71,6 +71,8 @@ style.textContent = `
     background-color: #f44336;
   }
 
+  /* 代理设置相关样式 */
+
   /* 导航容器样式 */
   .nav-container {
     position: relative;
@@ -2938,6 +2940,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveProxyConfigBtn = document.getElementById('saveProxyConfigBtn');
     const proxyConfigName = document.getElementById('proxyConfigName');
 
+    // 移除"始终可编辑"和"需要启用代理"标签
+    document.querySelectorAll('.badge, .always-editable').forEach(badge => {
+      badge.remove();
+    });
+
     // 加载保存的代理设置
     loadProxySettings();
     
@@ -2961,6 +2968,9 @@ document.addEventListener('DOMContentLoaded', function() {
       if (proxyUsername && proxyPassword) {
         proxyUsername.disabled = !(isEnabled && this.checked);
         proxyPassword.disabled = !(isEnabled && this.checked);
+        if (toggleProxyPassword) {
+          toggleProxyPassword.disabled = !(isEnabled && this.checked);
+        }
       }
     });
 
@@ -2973,44 +2983,43 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
-    // 代理启用/禁用状态变化
-    proxyEnabled.addEventListener('change', function() {
-      const enabled = this.checked;
-      // 禁用/启用部分设置字段，但保持基本配置可编辑
-      const fields = [bypassList, pacScriptUrl];
-      fields.forEach(field => {
-        if (field) field.disabled = !enabled;
-      });
+      // 代理启用/禁用状态变化
+  proxyEnabled.addEventListener('change', function() {
+    const enabled = this.checked;
+    
+    // 在固定服务器模式下，所有配置始终可编辑
+    // 不再禁用任何字段
+    
+    // 禁用/启用认证字段 - 认证复选框始终可编辑
+    if (proxyAuthRequired) {
+      // 认证复选框始终可编辑
+      proxyAuthRequired.disabled = false;
       
-      // 禁用/启用认证字段
-      if (proxyAuthRequired) {
-        proxyAuthRequired.disabled = !enabled;
-        // 当代理禁用时，也禁用认证相关的用户名和密码字段
-        if (proxyUsername && proxyPassword) {
-          const authEnabled = enabled && proxyAuthRequired.checked;
-          proxyUsername.disabled = !authEnabled;
-          proxyPassword.disabled = !authEnabled;
-          if (toggleProxyPassword) {
-            toggleProxyPassword.disabled = !authEnabled;
-          }
+      // 用户名和密码字段始终可编辑
+      if (proxyUsername && proxyPassword) {
+        proxyUsername.disabled = false;
+        proxyPassword.disabled = false;
+        if (toggleProxyPassword) {
+          toggleProxyPassword.disabled = false;
         }
       }
+    }
+    
+    // 如果禁用代理，更新状态信息
+    if (!enabled) {
+      proxyStatus.textContent = '当前状态: 直接连接（无代理）';
+      proxyStatus.style.color = '#666';
+      proxyStatus.style.display = 'block';
       
-      // 如果禁用代理，更新状态信息
-      if (!enabled) {
-        proxyStatus.textContent = '当前状态: 直接连接（无代理）';
-        proxyStatus.style.color = '#666';
-        proxyStatus.style.display = 'block';
-        
-        // 15秒后隐藏状态信息
-        setTimeout(function() {
-          proxyStatus.style.display = 'none';
-        }, 15000); // 统一设置为15秒
-      } else {
-        // 如果启用代理，清除状态显示
+      // 15秒后隐藏状态信息
+      setTimeout(function() {
         proxyStatus.style.display = 'none';
-      }
-    });
+      }, 15000); // 统一设置为15秒
+    } else {
+      // 如果启用代理，清除状态显示
+      proxyStatus.style.display = 'none';
+    }
+  });
 
     // 保存代理设置
     saveProxyBtn.addEventListener('click', function() {
@@ -3059,25 +3068,25 @@ document.addEventListener('DOMContentLoaded', function() {
       saveCurrentAsProxyConfig(configName);
     });
     
-    // 初始根据启用状态设置字段状态，但保持大部分配置可编辑
-    const isEnabled = proxyEnabled.checked;
-    const fields = [bypassList, pacScriptUrl];
-    fields.forEach(field => {
-      if (field) field.disabled = !isEnabled;
-    });
+      // 在固定服务器模式下，所有配置始终可编辑
+  
+  // 特殊处理认证相关字段 - 认证复选框始终可编辑
+  if (proxyAuthRequired) {
+    // 认证复选框始终可编辑
+    proxyAuthRequired.disabled = false;
     
-    // 特殊处理认证相关字段
-    if (proxyAuthRequired) {
-      proxyAuthRequired.disabled = !isEnabled;
-      if (proxyAuthRequired.checked && proxyUsername && proxyPassword) {
-        const authEnabled = isEnabled && proxyAuthRequired.checked;
-        proxyUsername.disabled = !authEnabled;
-        proxyPassword.disabled = !authEnabled;
-        if (toggleProxyPassword) {
-          toggleProxyPassword.disabled = !authEnabled;
-        }
+    // 用户名和密码字段始终可编辑
+    if (proxyUsername && proxyPassword) {
+      proxyUsername.disabled = false;
+      proxyPassword.disabled = false;
+      if (toggleProxyPassword) {
+        toggleProxyPassword.disabled = false;
       }
     }
+    
+    // 显示/隐藏认证设置
+    proxyAuthSettings.style.display = proxyAuthRequired.checked ? 'block' : 'none';
+  }
   }
   
   // 显示代理帮助信息
@@ -3867,6 +3876,34 @@ document.addEventListener('DOMContentLoaded', function() {
       // 显示/隐藏认证设置
       document.getElementById('proxyAuthSettings').style.display = 
         config.proxyAuthRequired ? 'block' : 'none';
+      
+      // 在固定服务器模式下，所有配置始终可编辑
+      
+      // 特殊处理认证相关字段 - 认证复选框始终可编辑
+      const proxyAuthRequired = document.getElementById('proxyAuthRequired');
+      const proxyUsername = document.getElementById('proxyUsername');
+      const proxyPassword = document.getElementById('proxyPassword');
+      const toggleProxyPassword = document.getElementById('toggleProxyPassword');
+      const proxyAuthSettings = document.getElementById('proxyAuthSettings');
+      
+      if (proxyAuthRequired) {
+        // 认证复选框始终可编辑
+        proxyAuthRequired.disabled = false;
+        
+        // 用户名和密码字段始终可编辑
+        if (proxyUsername && proxyPassword) {
+          proxyUsername.disabled = false;
+          proxyPassword.disabled = false;
+          if (toggleProxyPassword) {
+            toggleProxyPassword.disabled = false;
+          }
+        }
+        
+        // 显示/隐藏认证设置
+        if (proxyAuthSettings) {
+          proxyAuthSettings.style.display = proxyAuthRequired.checked ? 'block' : 'none';
+        }
+      }
       
       // 显示成功消息
       showToast(`配置 "${configName}" 已加载`, 'success');
