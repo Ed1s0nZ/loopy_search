@@ -3213,7 +3213,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const proxyConfig = details.value;
         
         if (proxyConfig.mode === 'direct') {
-          statusText = '✓ 当前状态: 直接连接（无代理）';
+          statusText = '✓ 正在使用直接连接（无代理）';
           statusColor = '#666';
         } else if (proxyConfig.mode === 'auto_detect') {
           statusText = '✓ 当前状态: 自动检测代理';
@@ -3244,10 +3244,8 @@ document.addEventListener('DOMContentLoaded', function() {
       proxyStatus.style.color = statusColor;
       proxyStatus.style.display = 'block';
       
-      // 5秒后隐藏状态信息
-      setTimeout(function() {
-        proxyStatus.style.display = 'none';
-      }, 5000);
+      // 不自动隐藏状态信息，让测试连接函数自己控制显示
+      // 这样避免与测试连接功能产生冲突
     });
   }
 
@@ -3349,16 +3347,26 @@ document.addEventListener('DOMContentLoaded', function() {
       // 应用代理设置
       applyProxySettings(settings);
       
-      // 显示成功消息
-      const proxyStatus = document.getElementById('proxyStatus');
-      proxyStatus.textContent = '✓ 代理设置已保存并应用!';
-      proxyStatus.style.display = 'block';
-      proxyStatus.style.color = '#34a853';
-      
-      // 3秒后隐藏消息
-      setTimeout(function() {
-        proxyStatus.style.display = 'none';
-      }, 3000);
+      // 检查是否有正在进行的测试连接
+      // 如果正在测试连接（proxyStatusTimer存在），则不显示保存成功消息
+      // 这样避免干扰测试连接的状态显示
+      if (!window.proxyStatusTimer) {
+        // 显示成功消息
+        const proxyStatus = document.getElementById('proxyStatus');
+        if (proxyStatus) {
+          proxyStatus.textContent = '✓ 代理设置已保存并应用!';
+          proxyStatus.style.display = 'block';
+          proxyStatus.style.color = '#34a853';
+          
+          // 3秒后隐藏消息
+          setTimeout(function() {
+            proxyStatus.style.display = 'none';
+          }, 3000);
+        }
+      } else {
+        // 如果正在测试连接，只显示Toast消息
+        showToast('代理设置已保存并应用!', 'success', 3000);
+      }
     });
   }
 
@@ -3461,9 +3469,12 @@ document.addEventListener('DOMContentLoaded', function() {
           }
           
           // 使用timeout确保状态更新
-          setTimeout(function() {
-            checkProxyStatus();
-          }, 500);
+          // 只有在没有正在进行的测试连接时才更新状态
+          if (!window.proxyStatusTimer) {
+            setTimeout(function() {
+              checkProxyStatus();
+            }, 500);
+          }
         }
       });
     } catch (error) {
@@ -3474,7 +3485,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 测试代理连接
   function testProxyConnection() {
+    // 获取状态显示元素
     const proxyStatus = document.getElementById('proxyStatus');
+    if (!proxyStatus) return;
+    
+    // 清除可能存在的任何定时器
+    if (window.proxyStatusTimer) {
+      clearTimeout(window.proxyStatusTimer);
+      window.proxyStatusTimer = null;
+    }
+    
+    // 显示初始测试状态
     proxyStatus.textContent = '正在测试连接...';
     proxyStatus.style.display = 'block';
     proxyStatus.style.color = '#1a73e8';
@@ -3494,73 +3515,132 @@ document.addEventListener('DOMContentLoaded', function() {
       `;
       proxyStatus.style.color = '#f4b400';  // 警告黄色
       
-      setTimeout(function() {
+      // 使用全局变量存储定时器ID，以便后续可以清除
+      window.proxyStatusTimer = setTimeout(function() {
         proxyStatus.style.display = 'none';
-      }, 5000);
+        window.proxyStatusTimer = null;
+      }, 15000);
       return;
     }
     
     // 先检查当前代理状态
     chrome.proxy.settings.get({}, function(details) {
-      // 如果当前是直接连接模式，并且代理未启用
-      if (!proxyEnabled || (details && details.value && details.value.mode === 'direct')) {
-        // 如果代理未启用，提示用户
-        if (!proxyEnabled) {
-          proxyStatus.innerHTML = '⚠️ 当前代理未启用，测试将使用直接连接';
-          proxyStatus.style.color = '#f4b400';  // 警告黄色
-        } else {
-          proxyStatus.innerHTML = '✓ 正在使用直接连接（无代理）';
-          proxyStatus.style.color = '#666';
-        }
-      }
-      
-      // 无论如何都进行连接测试，这样用户可以看到自己的实际IP
-      setTimeout(() => {
-        // 添加测试中的提示
-        if (proxyEnabled) {
-          proxyStatus.innerHTML += '<br>正在通过代理连接测试服务器...';
-        } else {
-          proxyStatus.innerHTML += '<br>正在直接连接测试服务器...';
+      try {
+        // 如果当前是直接连接模式，并且代理未启用
+        if (!proxyEnabled || (details && details.value && details.value.mode === 'direct')) {
+          // 如果代理未启用，提示用户
+          if (!proxyEnabled) {
+            proxyStatus.innerHTML = '⚠️ 当前代理未启用，测试将使用直接连接';
+            proxyStatus.style.color = '#f4b400';  // 警告黄色
+          } else {
+            proxyStatus.innerHTML = '✓ 正在使用直接连接（无代理）';
+            proxyStatus.style.color = '#666';
+          }
         }
         
-        // 使用多个代理检测服务来验证代理是否工作
-        Promise.any([
-          fetch('https://www.httpbin.org/ip', {method: 'GET', cache: 'no-store'}),
-          fetch('https://api.ipify.org?format=json', {method: 'GET', cache: 'no-store'})
-        ])
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP错误: ${response.status}`);
+        // 无论如何都进行连接测试，这样用户可以看到自己的实际IP
+        setTimeout(() => {
+          try {
+            // 添加测试中的提示
+            if (proxyEnabled) {
+              proxyStatus.innerHTML += '<br>正在通过代理连接测试服务器...';
+            } else {
+              proxyStatus.innerHTML += '<br>正在直接连接测试服务器...';
+            }
+            
+            // 设置超时时间
+            const TIMEOUT_MS = 20000; // 20秒超时
+            
+            // 创建一个超时Promise
+            const timeoutPromise = new Promise((_, reject) => {
+              setTimeout(() => reject(new Error('请求超时，请检查网络连接或代理设置')), TIMEOUT_MS);
+            });
+            
+            // 创建IP检测请求
+            const fetchHttpbin = fetch('https://www.httpbin.org/ip', {
+              method: 'GET', 
+              cache: 'no-store',
+              mode: 'cors'
+            })
+            .then(response => {
+              if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+              return response.json();
+            });
+            
+            const fetchIpify = fetch('https://api.ipify.org?format=json', {
+              method: 'GET', 
+              cache: 'no-store',
+              mode: 'cors'
+            })
+            .then(response => {
+              if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+              return response.json();
+            });
+            
+            // 尝试所有可能的IP检测服务，包括超时处理
+            Promise.race([
+              Promise.any([fetchHttpbin, fetchIpify]).catch(err => {
+                console.error('所有IP检测服务都失败:', err);
+                throw new Error('无法连接到IP检测服务，请检查网络或代理设置');
+              }),
+              timeoutPromise
+            ])
+            .then(data => {
+              // 提取IP地址（适配不同的API响应格式）
+              const ip = data.origin || data.ip || JSON.stringify(data);
+              
+              // 显示成功消息和IP地址（可帮助确认是否通过了代理）
+              if (proxyEnabled) {
+                proxyStatus.innerHTML = `✓ 连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">如果此IP与您的代理服务器IP一致，说明代理正常工作</span>`;
+              } else {
+                proxyStatus.innerHTML = `✓ 直接连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">这是您的真实IP地址，因为代理未启用</span>`;
+              }
+              proxyStatus.style.color = '#34a853';
+              
+              // 使用全局变量存储定时器ID，以便后续可以清除
+              window.proxyStatusTimer = setTimeout(function() {
+                proxyStatus.style.display = 'none';
+                window.proxyStatusTimer = null;
+              }, 30000); // 延长到30秒，确保用户有足够时间查看
+            })
+            .catch(error => {
+              // 连接失败
+              console.error('代理测试失败:', error);
+              
+              if (proxyEnabled) {
+                proxyStatus.innerHTML = `✗ 代理连接测试失败: ${error.message}<br>请检查代理服务器是否可用`;
+              } else {
+                proxyStatus.innerHTML = `✗ 直接连接测试失败: ${error.message}<br>请检查您的网络连接`;
+              }
+              proxyStatus.style.color = '#ea4335';
+              
+              // 使用全局变量存储定时器ID，以便后续可以清除
+              window.proxyStatusTimer = setTimeout(function() {
+                proxyStatus.style.display = 'none';
+                window.proxyStatusTimer = null;
+              }, 30000); // 延长到30秒，确保用户有足够时间查看错误信息
+            });
+          } catch (err) {
+            console.error('执行测试连接过程中出错:', err);
+            proxyStatus.innerHTML = `✗ 测试过程出错: ${err.message}`;
+            proxyStatus.style.color = '#ea4335';
+            
+            window.proxyStatusTimer = setTimeout(function() {
+              proxyStatus.style.display = 'none';
+              window.proxyStatusTimer = null;
+            }, 30000);
           }
-          return response.json();
-        })
-        .then(data => {
-          // 提取IP地址（适配不同的API响应格式）
-          const ip = data.origin || data.ip || JSON.stringify(data);
-          
-          // 显示成功消息和IP地址（可帮助确认是否通过了代理）
-          if (proxyEnabled) {
-            proxyStatus.innerHTML = `✓ 连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">如果此IP与您的代理服务器IP一致，说明代理正常工作</span>`;
-          } else {
-            proxyStatus.innerHTML = `✓ 直接连接测试成功!<br>当前IP地址: ${ip}<br><span style="font-size: 13px; color: #666;">这是您的真实IP地址，因为代理未启用</span>`;
-          }
-          proxyStatus.style.color = '#34a853';
-          
-          // 8秒后隐藏消息，给用户足够时间查看IP
-          setTimeout(function() {
-            proxyStatus.style.display = 'none';
-          }, 8000);
-        })
-        .catch(error => {
-          // 连接失败
-          if (proxyEnabled) {
-            proxyStatus.innerHTML = `✗ 代理连接测试失败: ${error.message}<br>请检查代理服务器是否可用`;
-          } else {
-            proxyStatus.innerHTML = `✗ 直接连接测试失败: ${error.message}<br>请检查您的网络连接`;
-          }
-          proxyStatus.style.color = '#ea4335';
-        });
-      }, 500);
+        }, 1000); // 增加延迟，确保状态显示更新
+      } catch (err) {
+        console.error('测试连接初始化出错:', err);
+        proxyStatus.innerHTML = `✗ 测试初始化错误: ${err.message}`;
+        proxyStatus.style.color = '#ea4335';
+        
+        window.proxyStatusTimer = setTimeout(function() {
+          proxyStatus.style.display = 'none';
+          window.proxyStatusTimer = null;
+        }, 30000);
+      }
     });
   }
 
