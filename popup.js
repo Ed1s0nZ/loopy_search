@@ -354,16 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // 密码显示/隐藏功能
-  togglePasswordBtn.addEventListener('click', function() {
-    if (apiKeyInput.type === 'password') {
-      apiKeyInput.type = 'text';
-      togglePasswordBtn.textContent = '隐藏';
-    } else {
-      apiKeyInput.type = 'password';
-      togglePasswordBtn.textContent = '显示';
-    }
-  });
+  // 密码显示/隐藏功能在 initializeSettings 中处理
 
   // 标签页切换
   navTabs.forEach(tab => {
@@ -784,9 +775,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 切换密码可见性
     if (togglePasswordBtn && apiKeyInput) {
       togglePasswordBtn.addEventListener('click', function() {
-        const type = apiKeyInput.type === 'password' ? 'text' : 'password';
-        apiKeyInput.type = type;
-        togglePasswordBtn.textContent = type === 'password' ? '显示' : '隐藏';
+        if (apiKeyInput.type === 'password') {
+          apiKeyInput.type = 'text';
+          this.textContent = '隐藏';
+        } else {
+          apiKeyInput.type = 'password';
+          this.textContent = '显示';
+        }
       });
     }
     
@@ -3120,9 +3115,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // 代理密码显示/隐藏
     if (toggleProxyPassword) {
       toggleProxyPassword.addEventListener('click', function() {
-        const type = proxyPassword.getAttribute('type') === 'password' ? 'text' : 'password';
-        proxyPassword.setAttribute('type', type);
-        this.textContent = type === 'password' ? '显示' : '隐藏';
+        if (proxyPassword.type === 'password') {
+          proxyPassword.type = 'text';
+          this.textContent = '隐藏';
+        } else {
+          proxyPassword.type = 'password';
+          this.textContent = '显示';
+        }
       });
     }
 
