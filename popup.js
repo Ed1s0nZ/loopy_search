@@ -1927,14 +1927,33 @@ document.addEventListener('DOMContentLoaded', function() {
         if (content) {
           content.classList.add('active');
         }
+        
+        // 保存当前激活的标签页ID
+        chrome.storage.local.set({ lastActiveTab: tabId }, function() {
+          console.log('已保存当前标签页:', tabId);
+        });
       });
     });
 
-    // 默认激活第一个标签页
-    const firstTab = document.querySelector('.nav-tab');
-    if (firstTab) {
-      firstTab.click();
-    }
+    // 加载上次激活的标签页
+    chrome.storage.local.get({ lastActiveTab: null }, function(data) {
+      if (data.lastActiveTab) {
+        // 查找对应的标签
+        const lastTab = document.querySelector(`.nav-tab[data-tab="${data.lastActiveTab}"]`);
+        if (lastTab) {
+          // 激活上次的标签页
+          lastTab.click();
+          console.log('已加载上次打开的标签页:', data.lastActiveTab);
+          return;
+        }
+      }
+      
+      // 如果没有上次的标签页记录或者找不到对应标签，则激活第一个标签页
+      const firstTab = document.querySelector('.nav-tab');
+      if (firstTab) {
+        firstTab.click();
+      }
+    });
 
     // 初始化聊天功能
     initializeChat();
@@ -2279,6 +2298,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // 清空输入框
       chatInput.value = '';
+      
+      // 清除草稿
+      saveDraft('');
       
       // 重置输入框高度
       chatInput.style.height = '44px';
@@ -2739,6 +2761,9 @@ document.addEventListener('DOMContentLoaded', function() {
       chatMessages.innerHTML = '';
       chatInput.value = '';
       
+      // 清除草稿
+      saveDraft('');
+      
       // 生成新的对话ID
       currentChatId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
       
@@ -2879,10 +2904,20 @@ document.addEventListener('DOMContentLoaded', function() {
       // 处理消息内容 - 如果是AI回复，尝试渲染Markdown
       if (role === 'assistant' && !isError && window.marked) {
         try {
-          messageContent.innerHTML = window.marked.parse(content);
+          // 移除内容开头和结尾的多余换行符
+          const trimmedContent = content.trim();
+          // 解析Markdown
+          let parsedHTML = window.marked.parse(trimmedContent);
+          
+          // 移除可能导致多余空白的HTML元素
+          parsedHTML = parsedHTML.replace(/<p>\s*<\/p>/g, '');
+          parsedHTML = parsedHTML.replace(/^\s*<p>/, '<p>');
+          parsedHTML = parsedHTML.replace(/<\/p>\s*$/, '</p>');
+          
+          messageContent.innerHTML = parsedHTML;
         } catch (e) {
           console.error('Markdown解析错误:', e);
-          messageContent.textContent = content;
+          messageContent.textContent = content.trim();
         }
       } else {
         // 用户消息需要保留换行符
@@ -3007,6 +3042,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // 启用/禁用发送按钮
       sendButton.disabled = !this.value.trim();
+      
+      // 保存输入框草稿
+      saveDraft(this.value);
     });
     
     // 新对话按钮
@@ -3016,6 +3054,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 初始禁用发送按钮
     sendButton.disabled = true;
+    
+    // 加载输入框草稿
+    loadDraft();
+    
+    // 保存输入框草稿
+    function saveDraft(text) {
+      chrome.storage.local.set({ chatInputDraft: text }, function() {
+        console.log('输入框草稿已保存');
+      });
+    }
+    
+    // 加载输入框草稿
+    function loadDraft() {
+      chrome.storage.local.get({ chatInputDraft: '' }, function(data) {
+        if (data.chatInputDraft) {
+          chatInput.value = data.chatInputDraft;
+          // 调整高度
+          const newHeight = Math.min(chatInput.scrollHeight, 120);
+          chatInput.style.height = newHeight + 'px';
+          // 启用/禁用发送按钮
+          sendButton.disabled = !chatInput.value.trim();
+        }
+      });
+    }
   }
 
   // ====== 导航栏遮罩控制 ======

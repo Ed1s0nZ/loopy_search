@@ -658,6 +658,16 @@
       box-sizing: border-box;
       white-space: pre-wrap; /* 保留换行符 */
     }
+    
+    /* 确保AI回复中的段落没有多余空白 */
+    .assistant .message-content p {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    
+    .assistant .message-content p:last-child {
+      margin-bottom: 0;
+    }
 
     /* markdown美化 */
     .message-content pre {
