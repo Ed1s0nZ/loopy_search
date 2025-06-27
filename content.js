@@ -549,6 +549,10 @@ async function updateResultContent(result) {
         // 4. 处理表格和段落之间的空行
         htmlContent = htmlContent.replace(/<\/table>\s*<p>/g, '</table><p>');
         htmlContent = htmlContent.replace(/<\/p>\s*<table>/g, '</p><table>');
+        
+        // 5. 处理表格或代码块后的多余换行
+        htmlContent = htmlContent.replace(/<\/table>\s*$/, '</table>');
+        htmlContent = htmlContent.replace(/<\/pre>\s*$/, '</pre>');
       } else {
         htmlContent = result.replace(/\n/g, '<br>'); // 如果没有marked，使用<br>标签
       }

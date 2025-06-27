@@ -689,6 +689,17 @@
     .assistant .message-content table + p {
       margin-top: 10px;
     }
+    
+    /* 修复表格和代码块在结尾处的多余空白 */
+    .assistant .message-content table:last-child,
+    .assistant .message-content pre:last-child {
+      margin-bottom: 0;
+    }
+    
+    /* 确保最后一个元素没有底部边距 */
+    .assistant .message-content > *:last-child {
+      margin-bottom: 0;
+    }
 
     /* markdown美化 */
     .message-content pre {

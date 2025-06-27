@@ -183,6 +183,17 @@
   margin-top: 10px;
 }
 
+/* 修复表格和代码块在结尾处的多余空白 */
+.markdown-body table:last-child,
+.markdown-body pre:last-child {
+  margin-bottom: 0;
+}
+
+/* 确保最后一个元素没有底部边距 */
+.markdown-body > *:last-child {
+  margin-bottom: 0;
+}
+
 .ai-search-result-content img {
   max-width: 100%;
   height: auto;

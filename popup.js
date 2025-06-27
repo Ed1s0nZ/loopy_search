@@ -2928,6 +2928,9 @@ document.addEventListener('DOMContentLoaded', function() {
           // 4. 处理表格和段落之间的空行
           parsedHTML = parsedHTML.replace(/<\/table>\s*<p>/g, '</table><p>');
           parsedHTML = parsedHTML.replace(/<\/p>\s*<table>/g, '</p><table>');
+          // 5. 处理表格或代码块结尾处的多余换行
+          parsedHTML = parsedHTML.replace(/<\/table>\s*$/, '</table>');
+          parsedHTML = parsedHTML.replace(/<\/pre>\s*$/, '</pre>');
           
           messageContent.innerHTML = parsedHTML;
         } catch (e) {
