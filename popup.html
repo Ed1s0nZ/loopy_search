@@ -669,6 +669,27 @@
       margin-bottom: 0;
     }
 
+    /* 修复不同元素之间的间距问题 */
+    .assistant .message-content pre,
+    .assistant .message-content ul,
+    .assistant .message-content ol,
+    .assistant .message-content table {
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    
+    /* 确保相邻元素之间没有多余空白 */
+    .assistant .message-content p + pre,
+    .assistant .message-content pre + p,
+    .assistant .message-content p + ul,
+    .assistant .message-content ul + p,
+    .assistant .message-content p + ol,
+    .assistant .message-content ol + p,
+    .assistant .message-content p + table,
+    .assistant .message-content table + p {
+      margin-top: 10px;
+    }
+
     /* markdown美化 */
     .message-content pre {
       background: #f5f5f5;

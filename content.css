@@ -153,6 +153,36 @@
   box-sizing: border-box;
 }
 
+/* 修复不同元素之间的间距问题 */
+.markdown-body p {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body pre,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body table {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+/* 确保相邻元素之间没有多余空白 */
+.markdown-body p + pre,
+.markdown-body pre + p,
+.markdown-body p + ul,
+.markdown-body ul + p,
+.markdown-body p + ol,
+.markdown-body ol + p,
+.markdown-body p + table,
+.markdown-body table + p {
+  margin-top: 10px;
+}
+
 .ai-search-result-content img {
   max-width: 100%;
   height: auto;

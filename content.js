@@ -531,6 +531,24 @@ async function updateResultContent(result) {
         // 确保换行符被正确处理
         result = result.replace(/\r\n/g, '\n'); // 统一换行符
         htmlContent = window.marked.parse(result);
+        
+        // 修复：处理Markdown渲染后的多余换行问题
+        // 1. 移除段落之间可能存在的多余空行
+        htmlContent = htmlContent.replace(/<p>\s*<\/p>/g, '');
+        htmlContent = htmlContent.replace(/^\s*<p>/, '<p>');
+        htmlContent = htmlContent.replace(/<\/p>\s*$/, '</p>');
+        htmlContent = htmlContent.replace(/<\/p>\s*<p>/g, '</p><p>');
+        // 2. 移除代码块和其他元素之间可能存在的多余空行
+        htmlContent = htmlContent.replace(/<\/pre>\s*<p>/g, '</pre><p>');
+        htmlContent = htmlContent.replace(/<\/p>\s*<pre>/g, '</p><pre>');
+        // 3. 处理列表和段落之间的空行
+        htmlContent = htmlContent.replace(/<\/ul>\s*<p>/g, '</ul><p>');
+        htmlContent = htmlContent.replace(/<\/ol>\s*<p>/g, '</ol><p>');
+        htmlContent = htmlContent.replace(/<\/p>\s*<ul>/g, '</p><ul>');
+        htmlContent = htmlContent.replace(/<\/p>\s*<ol>/g, '</p><ol>');
+        // 4. 处理表格和段落之间的空行
+        htmlContent = htmlContent.replace(/<\/table>\s*<p>/g, '</table><p>');
+        htmlContent = htmlContent.replace(/<\/p>\s*<table>/g, '</p><table>');
       } else {
         htmlContent = result.replace(/\n/g, '<br>'); // 如果没有marked，使用<br>标签
       }

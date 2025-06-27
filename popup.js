@@ -2914,6 +2914,21 @@ document.addEventListener('DOMContentLoaded', function() {
           parsedHTML = parsedHTML.replace(/^\s*<p>/, '<p>');
           parsedHTML = parsedHTML.replace(/<\/p>\s*$/, '</p>');
           
+          // 修复：处理Markdown渲染后的多余换行问题
+          // 1. 移除段落之间可能存在的多余空行
+          parsedHTML = parsedHTML.replace(/<\/p>\s*<p>/g, '</p><p>');
+          // 2. 移除代码块和其他元素之间可能存在的多余空行
+          parsedHTML = parsedHTML.replace(/<\/pre>\s*<p>/g, '</pre><p>');
+          parsedHTML = parsedHTML.replace(/<\/p>\s*<pre>/g, '</p><pre>');
+          // 3. 处理列表和段落之间的空行
+          parsedHTML = parsedHTML.replace(/<\/ul>\s*<p>/g, '</ul><p>');
+          parsedHTML = parsedHTML.replace(/<\/ol>\s*<p>/g, '</ol><p>');
+          parsedHTML = parsedHTML.replace(/<\/p>\s*<ul>/g, '</p><ul>');
+          parsedHTML = parsedHTML.replace(/<\/p>\s*<ol>/g, '</p><ol>');
+          // 4. 处理表格和段落之间的空行
+          parsedHTML = parsedHTML.replace(/<\/table>\s*<p>/g, '</table><p>');
+          parsedHTML = parsedHTML.replace(/<\/p>\s*<table>/g, '</p><table>');
+          
           messageContent.innerHTML = parsedHTML;
         } catch (e) {
           console.error('Markdown解析错误:', e);
