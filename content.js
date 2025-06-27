@@ -1528,7 +1528,18 @@ function showMemoWindow() {
   saveButton.addEventListener('click', function() {
     const text = textarea.value.trim();
     if (text) {
-      saveMemo(text);
+      // 检查是否处于编辑模式
+      const editId = saveButton.dataset.editId;
+      if (editId) {
+        // 更新现有备忘录
+        updateMemo(parseInt(editId), text);
+        // 重置编辑状态
+        saveButton.textContent = '保存';
+        delete saveButton.dataset.editId;
+      } else {
+        // 添加新备忘录
+        saveMemo(text);
+      }
       textarea.value = '';
       refreshMemoList();
     }
@@ -1542,6 +1553,31 @@ function showMemoWindow() {
   const memoList = document.createElement('div');
   memoList.className = 'ai-memo-list';
   memoContainer.appendChild(memoList);
+  
+  // 编辑备忘录
+  function editMemo(id, text) {
+    textarea.value = text;
+    textarea.focus();
+    saveButton.textContent = '更新';
+    saveButton.dataset.editId = id;
+    // 滚动到输入框位置
+    textarea.scrollIntoView({ behavior: 'smooth' });
+  }
+  
+  // 更新备忘录
+  function updateMemo(id, text) {
+    chrome.storage.local.get({ memos: [] }, function(data) {
+      const memos = data.memos;
+      const index = memos.findIndex(memo => memo.id === id);
+      if (index !== -1) {
+        memos[index].text = text;
+        memos[index].timestamp = new Date().toISOString(); // 更新时间戳
+        chrome.storage.local.set({ memos: memos }, function() {
+          console.log('备忘录已更新');
+        });
+      }
+    });
+  }
   
   // 刷新备忘录列表
   function refreshMemoList() {
@@ -1567,6 +1603,13 @@ function showMemoWindow() {
         memoTime.className = 'ai-memo-time';
         memoTime.textContent = new Date(memo.timestamp).toLocaleString();
         
+        const editButton = document.createElement('button');
+        editButton.className = 'ai-memo-edit-button';
+        editButton.textContent = '编辑';
+        editButton.addEventListener('click', function() {
+          editMemo(memo.id, memo.text);
+        });
+        
         const deleteButton = document.createElement('button');
         deleteButton.className = 'ai-memo-delete-button';
         deleteButton.textContent = '删除';
@@ -1577,6 +1620,7 @@ function showMemoWindow() {
         
         memoItem.appendChild(memoText);
         memoItem.appendChild(memoTime);
+        memoItem.appendChild(editButton);
         memoItem.appendChild(deleteButton);
         memoList.appendChild(memoItem);
       });
@@ -1659,6 +1703,29 @@ function addMemoStyles() {
     .ai-memo-time {
       font-size: 12px;
       color: #666;
+    }
+    
+    .ai-memo-edit-button {
+      position: absolute;
+      top: 8px;
+      right: 56px;
+      padding: 4px 8px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .ai-memo-item:hover .ai-memo-edit-button {
+      opacity: 1;
+    }
+    
+    .ai-memo-edit-button:hover {
+      background-color: #218838;
     }
     
     .ai-memo-delete-button {

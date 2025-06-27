@@ -935,6 +935,30 @@
     }
 
     /* 添加复制按钮样式 */
+    .memo-edit-btn {
+      position: absolute;
+      top: 8px;
+      right: 104px;
+      padding: 4px 8px;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      width: 40px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .memo-item:hover .memo-edit-btn {
+      opacity: 1;
+    }
+    .memo-edit-btn:hover {
+      background-color: #218838;
+    }
+    
     .memo-copy-btn {
       position: absolute;
       top: 8px;

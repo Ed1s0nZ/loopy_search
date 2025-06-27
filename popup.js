@@ -526,6 +526,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // 添加导出按钮的事件监听
     exportBtn.addEventListener('click', exportMemos);
 
+    // 编辑备忘录
+    function editMemo(id, text) {
+      // 将当前文本填入输入框
+      memoInput.value = text;
+      memoInput.focus();
+      
+      // 修改保存按钮状态为编辑模式
+      memoSaveBtn.textContent = '更新';
+      memoSaveBtn.dataset.editId = id;
+      
+      // 滚动到输入框位置
+      memoInput.scrollIntoView({ behavior: 'smooth' });
+    }
+
     // 加载备忘录列表
     function loadMemos() {
       chrome.storage.local.get({ memos: [] }, function(data) {
@@ -548,6 +562,14 @@ document.addEventListener('DOMContentLoaded', function() {
           memoTime.className = 'memo-time';
           memoTime.textContent = new Date(memo.timestamp).toLocaleString();
           
+          // 添加编辑按钮
+          const editBtn = document.createElement('button');
+          editBtn.className = 'memo-edit-btn';
+          editBtn.title = '编辑';
+          editBtn.textContent = '编辑';
+          editBtn.dataset.id = memo.id;
+          editBtn.dataset.text = memo.text;
+          
           // 添加复制按钮
           const copyBtn = document.createElement('button');
           copyBtn.className = 'memo-copy-btn';
@@ -562,6 +584,7 @@ document.addEventListener('DOMContentLoaded', function() {
           
           memoItem.appendChild(memoText);
           memoItem.appendChild(memoTime);
+          memoItem.appendChild(editBtn);
           memoItem.appendChild(copyBtn);
           memoItem.appendChild(deleteBtn);
           memoList.appendChild(memoItem);
@@ -572,6 +595,15 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.addEventListener('click', function() {
             const id = parseInt(this.dataset.id);
             deleteMemo(id);
+          });
+        });
+        
+        // 添加编辑事件监听
+        document.querySelectorAll('.memo-edit-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const id = parseInt(this.dataset.id);
+            const text = this.dataset.text;
+            editMemo(id, text);
           });
         });
         
@@ -606,18 +638,37 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
-    // 保存新备忘录
+    // 保存新备忘录或更新现有备忘录
     function saveMemo() {
       const text = memoInput.value.trim();
       if (!text) return;
 
+      // 检查是否是编辑模式
+      const editId = memoSaveBtn.dataset.editId;
+      
       chrome.storage.local.get({ memos: [] }, function(data) {
-        const memos = data.memos;
-        memos.push({
-          id: Date.now(),
-          text: text,
-          timestamp: new Date().toISOString()
-        });
+        let memos = data.memos;
+        
+        if (editId) {
+          // 更新现有备忘录
+          const id = parseInt(editId);
+          const index = memos.findIndex(memo => memo.id === id);
+          if (index !== -1) {
+            memos[index].text = text;
+            memos[index].timestamp = new Date().toISOString(); // 更新时间戳
+          }
+          // 重置编辑状态
+          memoSaveBtn.textContent = '保存';
+          delete memoSaveBtn.dataset.editId;
+        } else {
+          // 添加新备忘录
+          memos.push({
+            id: Date.now(),
+            text: text,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         chrome.storage.local.set({ memos: memos }, function() {
           memoInput.value = '';
           loadMemos();
@@ -669,6 +720,32 @@ document.addEventListener('DOMContentLoaded', function() {
       .memo-export-btn:hover {
         background-color: #1a73e8;
         color: white;
+      }
+      
+      .memo-edit-btn {
+        position: absolute;
+        top: 8px;
+        right: 104px;
+        padding: 4px 8px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        width: 40px;
+        text-align: center;
+        white-space: nowrap;
+      }
+      
+      .memo-item:hover .memo-edit-btn {
+        opacity: 1;
+      }
+      
+      .memo-edit-btn:hover {
+        background-color: #218838;
       }
     `;
     document.head.appendChild(style);
