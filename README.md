@@ -10,7 +10,6 @@
 
 ## 📝 项目简介
 
-**自用真的非常不错！！！强烈推荐！**
 AI划词搜索是一个智能的 Chrome 浏览器扩展，它能让你在浏览网页时快速获取 AI 对选中文本的解释和翻译。通过支持 OpenAI 协议，它可以连接到各种 AI 服务，为你提供即时的智能解答。不仅如此，它还提供了备忘录、历史记录、编码工具等多种实用功能，让你的浏览体验更加高效。
 
 ## ✨ 核心特性
@@ -31,20 +30,47 @@ AI划词搜索是一个智能的 Chrome 浏览器扩展，它能让你在浏览�
 
 ## 📸 功能展示
 
-### 配置界面
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E8%AE%BE%E7%BD%AE%E7%95%8C%E9%9D%A2.png" width="500px">  
-
-### 提示词管理
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E6%8F%90%E7%A4%BA%E8%AF%8D%E7%95%8C%E9%9D%A2.png" width="500px">  
-
 ### 划词搜索
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E4%BD%BF%E7%94%A8%E7%95%8C%E9%9D%A2.png" width="800px">  
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/使用界面.png" width="800px">  
 
 ### 搜索结果
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E6%90%9C%E7%B4%A2%E7%95%8C%E9%9D%A2.png" width="500px">  
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/搜索界面.png" width="500px">  
+
+### 设置界面
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/设置.png" width="500px">  
+
+### 提示词管理
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/提示词.png" width="500px">  
+
+### 新建提示词
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/新建提示词.png" width="500px">  
+
+### 备忘录功能
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/备忘录.png" width="500px">  
+
+### AI对话功能
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/对话功能-带记忆.png" width="500px">  
+
+### 历史对话管理
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/对话-历史对话.png" width="500px">  
 
 ### 历史记录
-<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/%E5%8E%86%E5%8F%B2%E8%AE%B0%E5%BD%95%E7%95%8C%E9%9D%A2.png" width="800px">  
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/历史记录.png" width="800px">  
+
+### 编码/解码工具
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/编码解码工具.png" width="500px">  
+
+### 编码/解码类型
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/编码解码-种类.png" width="500px">  
+
+### HTTP请求工具
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/发包工具.png" width="500px">  
+
+### 代理设置
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/代理工具.png" width="500px">  
+
+### 代理模式选择
+<img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/代理模式种类.png" width="500px">  
 
 ## 🚀 详细功能
 
