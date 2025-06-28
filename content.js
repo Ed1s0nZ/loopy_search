@@ -1536,6 +1536,8 @@ function showMemoWindow() {
         // 重置编辑状态
         saveButton.textContent = '保存';
         delete saveButton.dataset.editId;
+        // 隐藏取消按钮
+        cancelButton.style.display = 'none';
       } else {
         // 添加新备忘录
         saveMemo(text);
@@ -1545,8 +1547,29 @@ function showMemoWindow() {
     }
   });
   
+  // 创建取消按钮
+  const cancelButton = document.createElement('button');
+  cancelButton.className = 'ai-memo-cancel-button';
+  cancelButton.textContent = '取消';
+  cancelButton.style.display = 'none'; // 默认隐藏
+  cancelButton.addEventListener('click', function() {
+    // 清空输入框
+    textarea.value = '';
+    // 重置保存按钮状态
+    saveButton.textContent = '保存';
+    delete saveButton.dataset.editId;
+    // 隐藏取消按钮
+    cancelButton.style.display = 'none';
+  });
+  
+  // 创建按钮容器
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'ai-memo-button-container';
+  
   inputContainer.appendChild(textarea);
-  inputContainer.appendChild(saveButton);
+  buttonContainer.appendChild(saveButton);
+  buttonContainer.appendChild(cancelButton);
+  inputContainer.appendChild(buttonContainer);
   memoContainer.appendChild(inputContainer);
   
   // 创建备忘录列表
@@ -1560,6 +1583,8 @@ function showMemoWindow() {
     textarea.focus();
     saveButton.textContent = '更新';
     saveButton.dataset.editId = id;
+    // 显示取消按钮
+    cancelButton.style.display = 'inline-block';
     // 滚动到输入框位置
     textarea.scrollIntoView({ behavior: 'smooth' });
   }
@@ -1664,6 +1689,13 @@ function addMemoStyles() {
       font-size: 14px;
     }
     
+    .ai-memo-button-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 80px;
+    }
+    
     .ai-memo-save-button {
       padding: 8px 16px;
       background-color: #1a73e8;
@@ -1672,10 +1704,26 @@ function addMemoStyles() {
       border-radius: 4px;
       cursor: pointer;
       transition: background-color 0.2s;
+      width: 100%;
     }
     
     .ai-memo-save-button:hover {
       background-color: #1557b0;
+    }
+    
+    .ai-memo-cancel-button {
+      padding: 8px 16px;
+      background-color: #f1f3f4;
+      color: #5f6368;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    
+    .ai-memo-cancel-button:hover {
+      background-color: #e8eaed;
     }
     
     .ai-memo-list {

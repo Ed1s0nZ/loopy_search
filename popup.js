@@ -485,6 +485,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const memoInput = document.querySelector('.memo-input');
     const memoSaveBtn = document.querySelector('.memo-save-btn');
     const memoList = document.querySelector('.memo-list');
+    // 创建按钮容器
+    const memoBtnContainer = document.createElement('div');
+    memoBtnContainer.className = 'memo-btn-container';
+    
+    // 创建取消按钮，但暂时隐藏
+    const memoCancelBtn = document.createElement('button');
+    memoCancelBtn.className = 'memo-cancel-btn';
+    memoCancelBtn.textContent = '取消';
+    memoCancelBtn.style.display = 'none';
+    
+    // 将保存按钮移动到按钮容器中
+    document.querySelector('.memo-input-container').appendChild(memoBtnContainer);
+    memoBtnContainer.appendChild(memoSaveBtn);
+    memoBtnContainer.appendChild(memoCancelBtn);
 
     // 添加导出按钮到备忘录容器
     const exportBtn = document.createElement('button');
@@ -536,8 +550,24 @@ document.addEventListener('DOMContentLoaded', function() {
       memoSaveBtn.textContent = '更新';
       memoSaveBtn.dataset.editId = id;
       
+      // 显示取消按钮
+      memoCancelBtn.style.display = 'inline-block';
+      
       // 滚动到输入框位置
       memoInput.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // 取消编辑备忘录
+    function cancelEditMemo() {
+      // 清空输入框
+      memoInput.value = '';
+      
+      // 重置保存按钮状态
+      memoSaveBtn.textContent = '保存';
+      delete memoSaveBtn.dataset.editId;
+      
+      // 隐藏取消按钮
+      memoCancelBtn.style.display = 'none';
     }
 
     // 加载备忘录列表
@@ -660,6 +690,8 @@ document.addEventListener('DOMContentLoaded', function() {
           // 重置编辑状态
           memoSaveBtn.textContent = '保存';
           delete memoSaveBtn.dataset.editId;
+          // 隐藏取消按钮
+          memoCancelBtn.style.display = 'none';
         } else {
           // 添加新备忘录
           memos.push({
@@ -691,6 +723,10 @@ document.addEventListener('DOMContentLoaded', function() {
       memoSaveBtn.addEventListener('click', saveMemo);
     }
     
+    if (memoCancelBtn) {
+      memoCancelBtn.addEventListener('click', cancelEditMemo);
+    }
+    
     if (memoInput) {
       memoInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && e.ctrlKey) {
@@ -720,6 +756,34 @@ document.addEventListener('DOMContentLoaded', function() {
       .memo-export-btn:hover {
         background-color: #1a73e8;
         color: white;
+      }
+      
+      .memo-btn-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-left: 10px;
+      }
+      
+      .memo-save-btn {
+        width: 100%;
+      }
+      
+      .memo-cancel-btn {
+        padding: 10px 20px;
+        background-color: #f1f3f4;
+        color: #5f6368;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        font-size: 14px;
+        transition: all 0.3s;
+        width: 100%;
+      }
+      
+      .memo-cancel-btn:hover {
+        background-color: #e8eaed;
       }
       
       .memo-edit-btn {
