@@ -668,6 +668,11 @@
     .assistant .message-content p:last-child {
       margin-bottom: 0;
     }
+    
+    /* 确保AI回复中的段落之间没有多余空白 */
+    .assistant .message-content > * {
+      margin-top: 0;
+    }
 
     /* 修复不同元素之间的间距问题 */
     .assistant .message-content pre,

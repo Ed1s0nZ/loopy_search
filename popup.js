@@ -3073,6 +3073,9 @@ document.addEventListener('DOMContentLoaded', function() {
           parsedHTML = parsedHTML.replace(/<\/table>\s*$/, '</table>');
           parsedHTML = parsedHTML.replace(/<\/pre>\s*$/, '</pre>');
           
+          // 6. 移除所有HTML标签之间的多余空白字符（包括换行符、空格等）
+          parsedHTML = parsedHTML.replace(/>\s+</g, '><');
+          
           messageContent.innerHTML = parsedHTML;
         } catch (e) {
           console.error('Markdown解析错误:', e);

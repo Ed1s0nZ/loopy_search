@@ -549,6 +549,8 @@ async function updateResultContent(result) {
         // 4. 处理表格和段落之间的空行
         htmlContent = htmlContent.replace(/<\/table>\s*<p>/g, '</table><p>');
         htmlContent = htmlContent.replace(/<\/p>\s*<table>/g, '</p><table>');
+        // 5. 移除所有HTML标签之间的多余空白字符（包括换行符、空格等）
+        htmlContent = htmlContent.replace(/>\s+</g, '><');
         
         // 5. 处理表格或代码块后的多余换行
         htmlContent = htmlContent.replace(/<\/table>\s*$/, '</table>');
