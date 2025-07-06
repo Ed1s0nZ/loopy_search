@@ -192,7 +192,13 @@ chrome.runtime.onInstalled.addListener(function() {
     periodInMinutes: 60 // 每小时运行一次
   });
   console.debug('已创建历史记录清理定时任务（每小时执行）');
-  
+
+  // 添加插件卸载前的清理
+  chrome.runtime.onSuspend.addListener(function() {
+    console.debug('插件即将卸载，执行最后一次清理');
+    cleanupHistory();
+  });
+
   // 设置网络状态检查定时任务
   chrome.alarms.create('networkCheck', {
     periodInMinutes: 5 // 每5分钟检查一次
@@ -227,6 +233,14 @@ chrome.runtime.onInstalled.addListener(function() {
   // 另外在扩展启动时也执行一次清理
   console.debug('扩展启动，执行首次清理');
   cleanupHistory();
+});
+
+// 监听存储变化，当历史记录变化时进行清理
+chrome.storage.onChanged.addListener(function(changes, namespace) {
+  if (namespace === 'local' && changes.searchHistory) {
+    console.debug('历史记录发生变化，执行清理');
+    cleanupHistory();
+  }
 });
 
 // 监听存储变化，更新菜单
@@ -428,15 +442,32 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
 function cleanupHistory() {
   console.debug('开始清理历史记录, 保留天数:', historyRetentionDays);
   
+  // 如果清理正在进行中，避免重复执行
+  if (cleanupHistory.isRunning) {
+    console.debug('清理任务正在进行中，跳过本次清理');
+    return;
+  }
+  
+  cleanupHistory.isRunning = true;
+  
   chrome.storage.local.get({
     searchHistory: [],
-    maxChatHistory: 20 // 默认最大对话历史数量
+    maxChatHistory: 20, // 默认最大对话历史数量
+    saveHistory: true // 检查是否启用了历史记录功能
   }, function(data) {
+    // 如果历史记录功能被禁用，直接返回
+    if (!data.saveHistory) {
+      console.debug('历史记录功能已禁用，跳过清理');
+      cleanupHistory.isRunning = false;
+      return;
+    }
+    
     const history = data.searchHistory || [];
     console.debug('当前历史记录数量:', history.length);
     
     if (history.length === 0) {
       console.debug('没有历史记录需要清理');
+      cleanupHistory.isRunning = false;
       return;
     }
     
@@ -446,57 +477,74 @@ function cleanupHistory() {
     console.debug('清理截止时间:', new Date(cutoffTime).toLocaleString());
     console.debug('保留天数设置:', historyRetentionDays);
     
-    // 过滤掉过期的记录
-    let updatedHistory = history.filter(item => {
-      const keep = item.timestamp > cutoffTime;
-      if (!keep) {
-        console.debug('将删除过期记录:', {
-          query: item.query.substring(0, 50) + '...',
-          timestamp: new Date(item.timestamp).toLocaleString()
-        });
-      }
-      return keep;
-    });
-    
-    // 按类型分组限制数量
-    const chatHistory = updatedHistory.filter(item => item.type === 'chat');
-    const selectHistory = updatedHistory.filter(item => item.type === 'select');
-    const otherHistory = updatedHistory.filter(item => item.type !== 'chat' && item.type !== 'select');
-    
-    // 如果聊天历史超过限制，只保留最新的maxChatHistory条
-    if (chatHistory.length > data.maxChatHistory) {
-      console.debug(`聊天历史超过限制(${data.maxChatHistory})，将清理旧记录`);
-      // 按时间排序，保留最新的
-      chatHistory.sort((a, b) => b.timestamp - a.timestamp);
-      chatHistory.splice(data.maxChatHistory);
-    }
-    
-    // 如果划词历史超过限制，只保留最新的maxChatHistory条
-    if (selectHistory.length > data.maxChatHistory) {
-      console.debug(`划词历史超过限制(${data.maxChatHistory})，将清理旧记录`);
-      // 按时间排序，保留最新的
-      selectHistory.sort((a, b) => b.timestamp - a.timestamp);
-      selectHistory.splice(data.maxChatHistory);
-    }
-    
-    // 合并历史记录
-    updatedHistory = [...chatHistory, ...selectHistory, ...otherHistory];
-    
-    // 如果有记录被删除，则更新存储
-    if (updatedHistory.length < history.length) {
-      console.debug(`清理完成: 从 ${history.length} 条记录减少到 ${updatedHistory.length} 条`);
-      chrome.storage.local.set({ searchHistory: updatedHistory }, function() {
-        if (chrome.runtime.lastError) {
-          console.error('保存更新后的历史记录失败:', chrome.runtime.lastError);
-        } else {
-          console.debug('已成功保存更新后的历史记录');
+    try {
+      // 过滤掉过期的记录
+      let updatedHistory = history.filter(item => {
+        if (!item || !item.timestamp) {
+          console.warn('发现无效的历史记录项:', item);
+          return false;
         }
+        const keep = item.timestamp > cutoffTime;
+        if (!keep) {
+          console.debug('将删除过期记录:', {
+            query: item.query?.substring(0, 50) + '...',
+            timestamp: new Date(item.timestamp).toLocaleString()
+          });
+        }
+        return keep;
       });
-    } else {
-      console.debug('没有找到需要清理的记录');
+      
+      // 按类型分组限制数量
+      const chatHistory = updatedHistory.filter(item => item.type === 'chat');
+      const selectHistory = updatedHistory.filter(item => item.type === 'select');
+      const otherHistory = updatedHistory.filter(item => item.type !== 'chat' && item.type !== 'select');
+      
+      // 如果聊天历史超过限制，只保留最新的maxChatHistory条
+      if (chatHistory.length > data.maxChatHistory) {
+        console.debug(`聊天历史超过限制(${data.maxChatHistory})，将清理旧记录`);
+        chatHistory.sort((a, b) => b.timestamp - a.timestamp);
+        chatHistory.splice(data.maxChatHistory);
+      }
+      
+      // 如果划词历史超过限制，只保留最新的maxChatHistory条
+      if (selectHistory.length > data.maxChatHistory) {
+        console.debug(`划词历史超过限制(${data.maxChatHistory})，将清理旧记录`);
+        selectHistory.sort((a, b) => b.timestamp - a.timestamp);
+        selectHistory.splice(data.maxChatHistory);
+      }
+      
+      // 合并历史记录
+      updatedHistory = [...chatHistory, ...selectHistory, ...otherHistory];
+      
+      // 如果超过最大数量限制，删除旧记录
+      if (updatedHistory.length > maxHistoryItems) {
+        updatedHistory = updatedHistory.slice(0, maxHistoryItems);
+      }
+      
+      // 如果有记录被删除，则更新存储
+      if (updatedHistory.length < history.length) {
+        console.debug(`清理完成: 从 ${history.length} 条记录减少到 ${updatedHistory.length} 条`);
+        chrome.storage.local.set({ searchHistory: updatedHistory }, function() {
+          if (chrome.runtime.lastError) {
+            console.error('保存更新后的历史记录失败:', chrome.runtime.lastError);
+          } else {
+            console.debug('已成功保存更新后的历史记录');
+          }
+          cleanupHistory.isRunning = false;
+        });
+      } else {
+        console.debug('没有找到需要清理的记录');
+        cleanupHistory.isRunning = false;
+      }
+    } catch (error) {
+      console.error('清理历史记录时发生错误:', error);
+      cleanupHistory.isRunning = false;
     }
   });
 }
+
+// 初始化清理状态标志
+cleanupHistory.isRunning = false;
 
 // 检查网络状态
 function checkNetworkStatus() {
