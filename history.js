@@ -119,6 +119,16 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // 创建历史记录项
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function createHistoryItem(item) {
     const historyItem = document.createElement('div');
     historyItem.className = 'history-item';
@@ -148,14 +158,14 @@ document.addEventListener('DOMContentLoaded', function() {
     historyItem.innerHTML = `
       <div class="history-item-header">
         <span class="history-source-placeholder"></span>
-        <div class="history-item-title">${titleText}</div>
+        <div class="history-item-title">${escapeHTML(titleText)}</div>
         <div class="history-item-meta">
           <div class="history-item-rating">${ratingIcon}</div>
           <div class="history-item-date">${formattedDate}</div>
         </div>
       </div>
       <div class="history-item-content">
-        <div class="history-query">${item?.query || '无查询内容'}</div>
+        <div class="history-query">${escapeHTML(item?.query || '无查询内容')}</div>
         <div class="history-response">${marked.parse(item?.response || '无响应内容')}</div>
       </div>
       <div class="history-actions">

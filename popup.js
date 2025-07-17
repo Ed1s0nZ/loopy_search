@@ -425,37 +425,39 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // 加载历史记录预览
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   function loadHistoryPreview() {
     chrome.storage.local.get('searchHistory', function(data) {
       const history = data.searchHistory || [];
-      
       if (history.length === 0) {
         historyPreviewList.innerHTML = '<div class="history-preview-empty">暂无历史记录</div>';
         return;
       }
-      
       // 按时间倒序排列
       history.sort((a, b) => b.timestamp - a.timestamp);
-      
       // 只显示最近的5条记录
       const recentHistory = history.slice(0, 5);
-      
       historyPreviewList.innerHTML = '';
-      
       recentHistory.forEach(item => {
         const date = new Date(item.timestamp);
         const formattedDate = `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
-        
         // 截取查询内容作为标题
         const queryText = item.query.length > 50 ? item.query.substring(0, 50) + '...' : item.query;
-        
         const historyItem = document.createElement('div');
         historyItem.className = 'history-preview-item';
         historyItem.innerHTML = `
-          <div class="history-preview-query">${queryText}</div>
+          <div class="history-preview-query">${escapeHTML(queryText)}</div>
           <div class="history-preview-date">${formattedDate}</div>
         `;
-        
         historyPreviewList.appendChild(historyItem);
       });
     });
