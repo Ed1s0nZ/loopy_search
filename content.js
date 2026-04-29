@@ -1,12 +1,267 @@
-// 全局变量
-let aiSearchResult = null;
-let aiSearchButton = null;
-let selectedText = '';
-let rawResult = ''; // 存储原始结果文本
-let isMarkdownMode = true; // 默认使用Markdown模式
-let currentSearchId = null; // 当前搜索的ID
-let showFloatingButton = false; // 默认不显示浮动按钮
-let conversationHistory = []; // 存储对话历史
+// ==================== 消息通信系统（内容脚本端）====================
+const MessageBus = {
+  config: {
+    defaultTimeout: 30000,
+    maxRetries: 2,
+    retryDelay: 1000
+  },
+  
+  connectionStatus: {
+    isConnected: true,
+    lastCheck: null,
+    reconnectAttempts: 0
+  },
+  
+  pendingRequests: new Map(),
+  requestIdCounter: 0,
+  
+  // 生成请求ID
+  generateRequestId() {
+    return `req_${Date.now()}_${++this.requestIdCounter}`;
+  },
+  
+  // 发送消息（带超时和重试）
+  async send(message, options = {}) {
+    const { 
+      timeout = this.config.defaultTimeout,
+      maxRetries = this.config.maxRetries,
+      retryDelay = this.config.retryDelay
+    } = options;
+    
+    const requestId = this.generateRequestId();
+    const messageWithId = { ...message, requestId };
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this._sendWithTimeout(messageWithId, timeout);
+        
+        // 重置重连计数
+        this.connectionStatus.reconnectAttempts = 0;
+        this.connectionStatus.isConnected = true;
+        
+        return result;
+        
+      } catch (error) {
+        console.warn(`消息发送失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
+        
+        // 检查是否是连接错误
+        if (error.message && (
+            error.message.includes('Could not establish connection') ||
+            error.message.includes('Extension context invalidated') ||
+            error.message.includes('端口关闭') ||
+            error.message.includes('port closed')
+        )) {
+          this.connectionStatus.isConnected = false;
+          
+          // 尝试重新连接
+          if (attempt < maxRetries) {
+            console.log('尝试重新连接...');
+            await this._waitForConnection(retryDelay * (attempt + 1));
+            continue;
+          }
+        }
+        
+        // 最后一次尝试失败，抛出错误
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        
+        // 等待后重试
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+      }
+    }
+  },
+  
+  // 带超时的发送
+  _sendWithTimeout(message, timeout) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('消息发送超时'));
+      }, timeout);
+      
+      chrome.runtime.sendMessage(message, response => {
+        clearTimeout(timer);
+        
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+  },
+  
+  // 等待连接恢复
+  async _waitForConnection(delay) {
+    this.connectionStatus.reconnectAttempts++;
+    
+    // 发送一个简单的 ping 来检查连接
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Ping timeout')), 2000);
+        chrome.runtime.sendMessage({ action: 'healthCheck' }, response => {
+          clearTimeout(timer);
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+      this.connectionStatus.isConnected = true;
+    } catch (error) {
+      console.warn('连接检查失败:', error.message);
+      // 继续等待
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  },
+  
+  // 检查连接状态
+  async checkConnection() {
+    try {
+      const response = await this.send({ action: 'healthCheck' }, { timeout: 5000, maxRetries: 1 });
+      this.connectionStatus.lastCheck = Date.now();
+      this.connectionStatus.isConnected = true;
+      return { connected: true, response };
+    } catch (error) {
+      this.connectionStatus.isConnected = false;
+      return { connected: false, error: error.message };
+    }
+  }
+};
+
+// ==================== 全局状态管理 ====================
+const ContentState = {
+  aiSearchResult: null,
+  aiSearchButton: null,
+  selectedText: '',
+  rawResult: '',
+  isMarkdownMode: true,
+  currentSearchId: null,
+  showFloatingButton: false,
+  conversationHistory: [],
+  isRequesting: false,
+  lastError: null,
+  
+  requestProgress: {
+    stage: 'idle',
+    message: '',
+    startTime: null,
+    estimatedTime: null
+  },
+  
+  errorInfo: {
+    type: 'unknown',
+    title: '',
+    message: '',
+    suggestions: [],
+    timestamp: null
+  },
+  
+  notification: {
+    type: 'info',
+    message: '',
+    duration: 3000,
+    timestamp: null
+  },
+  
+  currentRequest: {
+    id: null,
+    abortController: null,
+    startTime: null
+  },
+  
+  listeners: new Map(),
+  
+  subscribe(key, callback) {
+    if (!this.listeners.has(key)) {
+      this.listeners.set(key, new Set());
+    }
+    this.listeners.get(key).add(callback);
+  },
+  
+  update(key, value) {
+    this[key] = value;
+    if (this.listeners.has(key)) {
+      this.listeners.get(key).forEach(cb => cb(value));
+    }
+  },
+  
+  setRequestProgress(stage, message) {
+    this.update('requestProgress', {
+      stage: stage,
+      message: message,
+      startTime: stage === 'idle' ? null : (this.requestProgress.startTime || Date.now()),
+      estimatedTime: null
+    });
+  },
+  
+  setError(errorType, title, message, suggestions = []) {
+    this.update('errorInfo', {
+      type: errorType,
+      title: title,
+      message: message,
+      suggestions: suggestions,
+      timestamp: Date.now()
+    });
+    this.update('lastError', new Error(message));
+  },
+  
+  showNotification(type, message, duration = 3000) {
+    this.update('notification', {
+      type: type,
+      message: message,
+      duration: duration,
+      timestamp: Date.now()
+    });
+    this.displayNotification(type, message, duration);
+  },
+  
+  displayNotification(type, message, duration) {
+    let notification = document.querySelector('.ai-search-notification');
+    if (notification) {
+      notification.remove();
+    }
+    
+    notification = document.createElement('div');
+    notification.className = `ai-search-notification ai-search-notification-${type}`;
+    notification.innerHTML = `
+      <div class="ai-search-notification-icon">${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</div>
+      <div class="ai-search-notification-message">${message}</div>
+      <div class="ai-search-notification-close">×</div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    const closeBtn = notification.querySelector('.ai-search-notification-close');
+    closeBtn.addEventListener('click', () => notification.remove());
+    
+    notification.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('ai-search-notification-close')) {
+        notification.remove();
+      }
+    });
+    
+    setTimeout(() => {
+      if (notification && notification.parentNode) {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 300);
+      }
+    }, duration);
+  },
+  
+  cancelCurrentRequest() {
+    if (this.currentRequest && this.currentRequest.abortController) {
+      this.currentRequest.abortController.abort();
+      this.update('isRequesting', false);
+      this.setRequestProgress('idle', '');
+      console.log('请求已取消');
+      return true;
+    }
+    return false;
+  }
+};
 
 // 生成唯一ID
 function generateId() {
@@ -586,33 +841,84 @@ function showLoadingState(message = '正在思考中...') {
   const content = aiSearchResult.querySelector('.ai-search-result-content');
   if (!content) return;
   
+  ContentState.setRequestProgress('loading', message);
+  
+  const startTime = ContentState.requestProgress.startTime || Date.now();
+  
   content.innerHTML = `
-    <div class="ai-search-result-loading">
+    <div class="ai-search-result-loading" data-start-time="${startTime}">
       <div class="ai-search-result-loading-spinner"></div>
       <div class="ai-search-result-loading-text">${message}</div>
+      <div class="ai-search-result-loading-progress">
+        <div class="ai-search-result-loading-progress-bar"></div>
+      </div>
+      <div class="ai-search-result-loading-info">
+        <span class="ai-search-result-loading-time">等待时间: 0s</span>
+        <button class="ai-search-result-cancel-btn">取消请求</button>
+      </div>
     </div>
   `;
   
-  // 确保窗口可见
+  const loadingElement = content.querySelector('.ai-search-result-loading');
+  const cancelBtn = content.querySelector('.ai-search-result-cancel-btn');
+  const timeDisplay = content.querySelector('.ai-search-result-loading-time');
+  
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      const cancelled = ContentState.cancelCurrentRequest();
+      if (cancelled) {
+        loadingElement.innerHTML = `
+          <div class="ai-search-result-loading-cancelled">
+            <div class="ai-search-result-loading-icon">⏹</div>
+            <div class="ai-search-result-loading-text">请求已取消</div>
+          </div>
+        `;
+        setTimeout(() => {
+          if (loadingElement.parentNode) {
+            loadingElement.parentNode.removeChild(loadingElement);
+          }
+        }, 2000);
+      }
+    });
+  }
+  
+  if (timeDisplay && startTime) {
+    const timeInterval = setInterval(() => {
+      if (!timeDisplay.parentNode) {
+        clearInterval(timeInterval);
+        return;
+      }
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      timeDisplay.textContent = `等待时间: ${elapsed}s`;
+      
+      if (elapsed > 30) {
+        timeDisplay.classList.add('ai-search-result-loading-time-warning');
+      }
+    }, 1000);
+  }
+  
   aiSearchResult.style.display = 'block';
 }
 
 // 检查网络状态并显示详细信息
-function checkNetworkStatus() {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ action: 'getNetworkStatus' }, function(response) {
-      if (chrome.runtime.lastError) {
-        reject(chrome.runtime.lastError);
-        return;
-      }
-      
-      if (response && response.status) {
-        resolve(response);
-      } else {
-        reject(new Error('无法获取网络状态信息'));
-      }
+async function checkNetworkStatus() {
+  try {
+    const response = await MessageBus.send({ 
+      action: 'getNetworkStatus' 
+    }, { 
+      timeout: 5000,
+      maxRetries: 1
     });
-  });
+    
+    if (response && response.status) {
+      return response;
+    } else {
+      throw new Error('无法获取网络状态信息');
+    }
+  } catch (error) {
+    console.error('检查网络状态失败:', error);
+    throw error;
+  }
 }
 
 // 显示网络状态信息
@@ -745,32 +1051,34 @@ async function fetchAIResponse(apiUrl, apiKey, model, messages) {
       messagesCount: Array.isArray(messages) ? messages.length : 1
     });
     
-    // 通过 background.js 发送请求
-    const response = await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({
-        action: 'fetchAIResponse',
-        apiUrl: apiUrl,
-        apiKey: apiKey,
-        data: {
-          model: model,
-          messages: Array.isArray(messages) ? messages : [
-            {
-              role: 'user',
-              content: messages
-            }
-          ],
-          temperature: 0.7
-        }
-      }, response => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else if (!response || !response.success) {
-          reject(new Error(response?.error || '请求失败'));
-        } else {
-          resolve(response);
-        }
-      });
+    // 设置请求状态
+    ContentState.update('isRequesting', true);
+    
+    // 通过 MessageBus 发送请求（带超时和重试）
+    const response = await MessageBus.send({
+      action: 'fetchAIResponse',
+      apiUrl: apiUrl,
+      apiKey: apiKey,
+      data: {
+        model: model,
+        messages: Array.isArray(messages) ? messages : [
+          {
+            role: 'user',
+            content: messages
+          }
+        ],
+        temperature: 0.7
+      }
+    }, {
+      timeout: 120000, // 2分钟超时
+      maxRetries: 2,
+      retryDelay: 2000
     });
+
+    // 检查响应
+    if (!response.success) {
+      throw new Error(response.error || '请求失败');
+    }
 
     // 提取回复内容
     if (response.data.choices && response.data.choices.length > 0) {
@@ -778,12 +1086,15 @@ async function fetchAIResponse(apiUrl, apiKey, model, messages) {
       if (!content) {
         throw new Error('API响应中没有找到内容');
       }
+      ContentState.update('isRequesting', false);
       return { success: true, content: content };
     } else {
       throw new Error('API响应格式异常，未找到有效内容');
     }
   } catch (error) {
     console.error('API请求异常:', error);
+    ContentState.update('isRequesting', false);
+    ContentState.update('lastError', error);
     
     // 检查是否是并发限制错误
     const errorMessage = error.message.toLowerCase();
@@ -792,7 +1103,6 @@ async function fetchAIResponse(apiUrl, apiKey, model, messages) {
         errorMessage.includes('rate limit') ||
         errorMessage.includes('请求达到最大并发数')) {
       console.log('API并发限制，等待重试');
-      // 不向用户显示错误，直接返回特殊标记
       return { success: false, isRateLimit: true };
     }
     
@@ -813,62 +1123,189 @@ function showErrorState(title, message) {
   console.error(`错误: ${title} - ${message}`);
   
   try {
-    // 确保aiSearchResult存在
     if (!aiSearchResult || !document.body.contains(aiSearchResult)) {
       createAISearchResultWindow();
     }
     
-    // 获取内容区域
     const content = aiSearchResult.querySelector('.ai-search-result-content');
     if (!content) {
       console.error('找不到内容容器');
       return;
     }
     
-    // 标记错误状态
     aiSearchResult.dataset.errorState = 'true';
     
-    // 隐藏加载状态
     const loadingElement = content.querySelector('.ai-search-result-loading');
     if (loadingElement) {
       loadingElement.remove();
     }
     
+    const errorInfo = analyzeError(title, message);
+    ContentState.setError(errorInfo.type, title, message, errorInfo.suggestions);
+    
+    const errorIcon = getErrorIcon(errorInfo.type);
+    const suggestionsHtml = errorInfo.suggestions.length > 0 ? 
+      `<div class="ai-search-result-error-suggestions">
+        <div class="ai-search-result-error-suggestions-title">💡 建议解决方案：</div>
+        <ul>
+          ${errorInfo.suggestions.map(s => `<li>${s}</li>`).join('')}
+        </ul>
+      </div>` : '';
+    
     content.innerHTML = `
-      <div class="ai-search-result-error">
-        <div class="ai-search-result-error-icon">❌</div>
+      <div class="ai-search-result-error ai-search-result-error-${errorInfo.type}">
+        <div class="ai-search-result-error-icon">${errorIcon}</div>
+        <div class="ai-search-result-error-type">${getErrorTypeName(errorInfo.type)}</div>
         <div class="ai-search-result-error-title">${title}</div>
         <div class="ai-search-result-error-message">${message}</div>
-        <button class="ai-search-result-retry-button">重试</button>
+        ${suggestionsHtml}
+        <div class="ai-search-result-error-actions">
+          <button class="ai-search-result-retry-button">🔄 重试</button>
+          <button class="ai-search-result-settings-button">⚙️ 检查设置</button>
+          <button class="ai-search-result-network-button">🌐 网络诊断</button>
+        </div>
+        <div class="ai-search-result-error-time">${new Date().toLocaleString()}</div>
       </div>
     `;
 
-    // 添加重试按钮的点击事件处理
     const retryButton = content.querySelector('.ai-search-result-retry-button');
+    const settingsButton = content.querySelector('.ai-search-result-settings-button');
+    const networkButton = content.querySelector('.ai-search-result-network-button');
+    
     if (retryButton) {
       const retryHandler = function() {
-        // 移除事件监听器
         retryButton.removeEventListener('click', retryHandler);
-        
-        // 清除错误状态
         delete aiSearchResult.dataset.errorState;
         
-        // 如果存在已选中的文本,重新执行查询
         if (selectedText) {
           searchWithAI(selectedText);
+        } else {
+          ContentState.showNotification('info', '请重新选择文本进行搜索');
         }
       };
       retryButton.addEventListener('click', retryHandler);
     }
     
-    // 确保窗口可见
+    if (settingsButton) {
+      settingsButton.addEventListener('click', () => {
+        openSettings();
+      });
+    }
+    
+    if (networkButton) {
+      networkButton.addEventListener('click', () => {
+        showNetworkStatus();
+      });
+    }
+    
     if (aiSearchResult) {
       aiSearchResult.style.display = 'block';
     }
     
+    ContentState.showNotification('error', title);
+    
   } catch (error) {
-    console.error('显示错误状态时出错:', error);
+    console.error('显示错误状态时出现异常:', error);
   }
+}
+
+function analyzeError(title, message) {
+  const lowerMessage = message.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+  
+  let type = 'unknown';
+  let suggestions = [];
+  
+  if (lowerMessage.includes('api key') || lowerMessage.includes('apikey') || 
+      lowerTitle.includes('api密钥') || lowerMessage.includes('认证')) {
+    type = 'auth';
+    suggestions = [
+      '请检查扩展设置中的 API 密钥是否正确',
+      '确认 API 密钥已被正确复制（不要包含空格或换行符）',
+      '如果使用的是新密钥，请等待几分钟让密钥生效',
+      '检查账户余额是否充足'
+    ];
+  } else if (lowerMessage.includes('network') || lowerMessage.includes('连接失败') || 
+             lowerMessage.includes('failed to fetch') || lowerMessage.includes('net::') ||
+             lowerTitle.includes('网络')) {
+    type = 'network';
+    suggestions = [
+      '检查您的网络连接是否正常',
+      '确认防火墙或杀毒软件没有阻止扩展连接',
+      '如果使用代理，请检查代理设置是否正确',
+      '尝试关闭 VPN 或代理后重试',
+      '点击"网络诊断"按钮进行详细检查'
+    ];
+  } else if (lowerMessage.includes('rate limit') || lowerMessage.includes('并发') ||
+             lowerMessage.includes('请求过多') || lowerMessage.includes('concurrent')) {
+    type = 'rate_limit';
+    suggestions = [
+      'API 请求频率超限，请等待几秒钟后重试',
+      '减少同时进行的请求数量',
+      '如果问题持续，请联系 API 提供商提高限额'
+    ];
+  } else if (lowerMessage.includes('超时') || lowerMessage.includes('timeout') ||
+             lowerMessage.includes('请求超时')) {
+    type = 'timeout';
+    suggestions = [
+      '网络连接可能较慢，请检查网络状态',
+      'API 服务器响应超时，稍后重试',
+      '如果使用代理，尝试调整超时设置'
+    ];
+  } else if (lowerMessage.includes('配置') || lowerMessage.includes('设置') ||
+             lowerMessage.includes('api url') || lowerMessage.includes('endpoint')) {
+    type = 'config';
+    suggestions = [
+      '请检查扩展设置中的 API 地址是否正确',
+      '确认 API 地址包含完整的路径（如 /v1/chat/completions）',
+      '检查是否需要特定的协议前缀（http:// 或 https://）'
+    ];
+  } else if (lowerMessage.includes('权限') || lowerMessage.includes('permission') ||
+             lowerMessage.includes('访问被拒绝')) {
+    type = 'permission';
+    suggestions = [
+      '检查 API 密钥的权限范围',
+      '确认账户有权访问该 API 模型',
+      '联系 API 提供商确认账户状态'
+    ];
+  } else if (lowerMessage.includes('模型') || lowerMessage.includes('model')) {
+    type = 'model';
+    suggestions = [
+      '检查设置的模型名称是否正确',
+      '确认该模型在您的 API 账户中可用',
+      '尝试使用默认模型（如 gpt-3.5-turbo）'
+    ];
+  }
+  
+  return { type, suggestions };
+}
+
+function getErrorIcon(type) {
+  const icons = {
+    auth: '🔐',
+    network: '🌐',
+    rate_limit: '⏳',
+    timeout: '⏱️',
+    config: '⚙️',
+    permission: '🚫',
+    model: '🤖',
+    unknown: '❌'
+  };
+  return icons[type] || '❌';
+}
+
+function getErrorTypeName(type) {
+  const names = {
+    auth: '认证错误',
+    network: '网络错误',
+    rate_limit: '请求限制',
+    timeout: '请求超时',
+    config: '配置错误',
+    permission: '权限错误',
+    model: '模型错误',
+    unknown: '未知错误'
+  };
+  return names[type] || '错误';
 }
 
 // 清理资源函数
@@ -1052,18 +1489,25 @@ function searchWithAI(text, template = null) {
               type: type,
               rating: 0
             };
-            // 保存到历史记录
-            chrome.runtime.sendMessage({
-              action: 'saveSearchHistory',
-              data: historyData
-            }, function(response) {
-              if (chrome.runtime.lastError) {
-                console.error('保存历史记录失败:', chrome.runtime.lastError);
-              } else if (response && response.id) {
-                console.log('历史记录保存成功，ID:', response.id);
-                currentSearchId = response.id;
+            // 保存到历史记录（使用 MessageBus）
+            (async () => {
+              try {
+                const response = await MessageBus.send({
+                  action: 'saveSearchHistory',
+                  data: historyData
+                }, {
+                  timeout: 10000,
+                  maxRetries: 1
+                });
+                
+                if (response && response.id) {
+                  console.log('历史记录保存成功，ID:', response.id);
+                  ContentState.update('currentSearchId', response.id);
+                }
+              } catch (error) {
+                console.error('保存历史记录失败:', error);
               }
-            });
+            })();
           }
         } else {
           throw new Error('API返回内容为空');
@@ -1463,12 +1907,17 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 打开设置页面
-function openSettings() {
-  chrome.runtime.sendMessage({ action: 'openSettings' }, function(response) {
-    if (chrome.runtime.lastError) {
-      console.error('打开设置失败:', chrome.runtime.lastError);
-    }
-  });
+async function openSettings() {
+  try {
+    await MessageBus.send({ 
+      action: 'openSettings' 
+    }, { 
+      timeout: 5000,
+      maxRetries: 1
+    });
+  } catch (error) {
+    console.error('打开设置失败:', error);
+  }
 }
 
 // 保存备忘录
