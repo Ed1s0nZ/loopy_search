@@ -1,12 +1,577 @@
-// 全局变量
-let historyRetentionDays = 7; // 默认保留7天
-let maxHistoryItems = 1000; // 最大历史记录数量
-let lastError = null; // 存储最后一次错误信息
-let lastSelectedText = ''; // 存储最后一次选中的文本
-let networkStatus = { // 网络状态监控
-  lastCheck: null,
-  isOnline: true,
-  lastError: null
+// ==================== 全局状态管理 ====================
+const GlobalState = {
+  historyRetentionDays: 7,
+  maxHistoryItems: 1000,
+  lastError: null,
+  lastSelectedText: '',
+  networkStatus: {
+    lastCheck: null,
+    isOnline: true,
+    lastError: null
+  },
+  serviceWorkerStatus: {
+    isActive: false,
+    lastRestart: null,
+    restartCount: 0
+  },
+  listeners: new Map()
+};
+
+// 状态订阅机制
+function subscribeState(key, callback) {
+  if (!GlobalState.listeners.has(key)) {
+    GlobalState.listeners.set(key, new Set());
+  }
+  GlobalState.listeners.get(key).add(callback);
+}
+
+function updateState(key, value) {
+  GlobalState[key] = value;
+  if (GlobalState.listeners.has(key)) {
+    GlobalState.listeners.get(key).forEach(cb => cb(value));
+  }
+}
+
+// ==================== AI 请求稳定引擎 ====================
+const AIRequestEngine = {
+  config: {
+    maxRetries: 3,
+    baseDelay: 1000,
+    maxDelay: 10000,
+    requestTimeout: 120000,
+    maxConcurrentRequests: 3
+  },
+  
+  requestQueue: [],
+  activeRequests: new Map(),
+  requestStats: {
+    totalRequests: 0,
+    successfulRequests: 0,
+    failedRequests: 0,
+    retriedRequests: 0
+  },
+  
+  // 指数退避延迟计算
+  calculateDelay(retryCount) {
+    const delay = Math.min(
+      this.config.baseDelay * Math.pow(2, retryCount),
+      this.config.maxDelay
+    );
+    return delay + Math.random() * 100;
+  },
+  
+  // 检查是否应该重试
+  shouldRetry(error, retryCount) {
+    if (retryCount >= this.config.maxRetries) return false;
+    
+    const retryableErrors = [
+      'network error',
+      'fetch failed',
+      'timeout',
+      'abort',
+      'rate limit',
+      'too many requests',
+      '500',
+      '502',
+      '503',
+      '504',
+      'service unavailable',
+      'bad gateway'
+    ];
+    
+    const errorMsg = (error.message || '').toLowerCase();
+    return retryableErrors.some(err => errorMsg.includes(err));
+  },
+  
+  // 分类错误类型
+  classifyError(error, response = null) {
+    const errorMsg = (error.message || '').toLowerCase();
+    
+    if (error.name === 'AbortError') {
+      return { type: 'timeout', message: '请求超时，请稍后重试', recoverable: true };
+    }
+    
+    if (errorMsg.includes('network') || errorMsg.includes('fetch failed')) {
+      return { type: 'network', message: '网络连接失败，请检查网络设置', recoverable: true };
+    }
+    
+    if (response) {
+      switch (response.status) {
+        case 401:
+        case 403:
+          return { type: 'auth', message: 'API密钥无效，请检查配置', recoverable: false };
+        case 429:
+          return { type: 'rate_limit', message: '请求过于频繁，请稍后重试', recoverable: true };
+        case 400:
+          return { type: 'bad_request', message: '请求参数错误，请检查输入', recoverable: false };
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          return { type: 'server_error', message: '服务器暂时不可用，请稍后重试', recoverable: true };
+      }
+    }
+    
+    return { type: 'unknown', message: error.message || '未知错误', recoverable: true };
+  },
+  
+  // 执行单个请求（带重试）
+  async executeRequest(requestConfig, retryCount = 0) {
+    const { url, options, apiKey } = requestConfig;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.config.requestTimeout);
+    
+    try {
+      this.requestStats.totalRequests++;
+      
+      const fetchOptions = {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${apiKey}`
+        }
+      };
+      
+      const response = await fetch(url, fetchOptions);
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error?.message || errorJson.message || `请求失败 (${response.status})`;
+        } catch {
+          errorMessage = `请求失败 (${response.status}): ${errorText.substring(0, 200)}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      this.requestStats.successfulRequests++;
+      
+      return {
+        success: true,
+        data: {
+          choices: data.choices?.map(choice => ({
+            message: choice.message,
+            finish_reason: choice.finish_reason
+          }))
+        }
+      };
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      const errorInfo = this.classifyError(error);
+      
+      // 更新网络状态
+      if (errorInfo.type === 'network' || errorInfo.type === 'timeout') {
+        updateState('networkStatus', {
+          ...GlobalState.networkStatus,
+          isOnline: false,
+          lastError: errorInfo.message,
+          lastCheck: Date.now()
+        });
+      }
+      
+      // 检查是否应该重试
+      if (errorInfo.recoverable && this.shouldRetry(error, retryCount)) {
+        this.requestStats.retriedRequests++;
+        const delay = this.calculateDelay(retryCount);
+        
+        console.log(`请求失败，将在 ${delay}ms 后重试 (第 ${retryCount + 1} 次)`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.executeRequest(requestConfig, retryCount + 1);
+      }
+      
+      this.requestStats.failedRequests++;
+      return {
+        success: false,
+        error: errorInfo.message,
+        errorType: errorInfo.type,
+        retryCount
+      };
+    }
+  },
+  
+  // 添加请求到队列
+  async addToQueue(requestConfig) {
+    return new Promise((resolve, reject) => {
+      const queueItem = {
+        id: Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        config: requestConfig,
+        resolve,
+        reject,
+        status: 'pending'
+      };
+      
+      this.requestQueue.push(queueItem);
+      this.processQueue();
+    });
+  },
+  
+  // 处理请求队列
+  processQueue() {
+    while (
+      this.activeRequests.size < this.config.maxConcurrentRequests &&
+      this.requestQueue.length > 0
+    ) {
+      const queueItem = this.requestQueue.shift();
+      if (queueItem) {
+        this.executeQueueItem(queueItem);
+      }
+    }
+  },
+  
+  // 执行队列中的请求
+  async executeQueueItem(queueItem) {
+    queueItem.status = 'active';
+    this.activeRequests.set(queueItem.id, queueItem);
+    
+    try {
+      const result = await this.executeRequest(queueItem.config);
+      queueItem.resolve(result);
+    } catch (error) {
+      queueItem.reject(error);
+    } finally {
+      this.activeRequests.delete(queueItem.id);
+      queueItem.status = 'completed';
+      this.processQueue();
+    }
+  },
+  
+  // 取消所有请求
+  cancelAllRequests() {
+    this.requestQueue = [];
+    this.activeRequests.forEach((item, id) => {
+      item.reject(new Error('请求已取消'));
+    });
+    this.activeRequests.clear();
+  },
+  
+  // 获取请求统计
+  getStats() {
+    return {
+      ...this.requestStats,
+      queueLength: this.requestQueue.length,
+      activeRequests: this.activeRequests.size
+    };
+  }
+};
+
+// ==================== 消息通信系统 ====================
+const MessageBus = {
+  handlers: new Map(),
+  
+  // 注册消息处理器
+  register(action, handler) {
+    if (!this.handlers.has(action)) {
+      this.handlers.set(action, []);
+    }
+    this.handlers.get(action).push(handler);
+  },
+  
+  // 发送消息（带超时和重试）
+  async send(tabId, message, options = {}) {
+    const { timeout = 5000, maxRetries = 2, retryDelay = 1000 } = options;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error('消息发送超时'));
+          }, timeout);
+          
+          chrome.tabs.sendMessage(tabId, message, response => {
+            clearTimeout(timer);
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              resolve(response);
+            }
+          });
+        });
+        return result;
+      } catch (error) {
+        if (attempt === maxRetries) {
+          console.error(`消息发送失败，已重试 ${maxRetries} 次:`, error);
+          throw error;
+        }
+        
+        // 检查是否需要注入内容脚本
+        if (error.message && error.message.includes('Could not establish connection')) {
+          console.log('内容脚本未加载，尝试注入...');
+          try {
+            await this.injectContentScripts(tabId);
+          } catch (injectError) {
+            console.error('注入内容脚本失败:', injectError);
+          }
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+      }
+    }
+  },
+  
+  // 注入内容脚本
+  async injectContentScripts(tabId) {
+    return new Promise((resolve, reject) => {
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['marked.min.js']
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('注入 marked.min.js 失败:', chrome.runtime.lastError);
+        }
+        
+        chrome.scripting.insertCSS({
+          target: { tabId: tabId },
+          files: ['content.css']
+        }, () => {
+          if (chrome.runtime.lastError) {
+            console.warn('注入 content.css 失败:', chrome.runtime.lastError);
+          }
+          
+          chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ['content.js']
+          }, () => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              setTimeout(resolve, 200);
+            }
+          });
+        });
+      });
+    });
+  },
+  
+  // 广播消息到所有标签页
+  async broadcast(message) {
+    const tabs = await new Promise(resolve => {
+      chrome.tabs.query({}, resolve);
+    });
+    
+    const results = [];
+    for (const tab of tabs) {
+      try {
+        const result = await this.send(tab.id, message, { maxRetries: 0 });
+        results.push({ tabId: tab.id, success: true, result });
+      } catch (error) {
+        results.push({ tabId: tab.id, success: false, error: error.message });
+      }
+    }
+    
+    return results;
+  }
+};
+
+// ==================== Service Worker 健康监控 ====================
+const ServiceWorkerHealth = {
+  heartbeatInterval: 30000,
+  heartbeatTimer: null,
+  
+  // 启动健康监控
+  start() {
+    console.log('Service Worker 健康监控已启动');
+    updateState('serviceWorkerStatus', {
+      ...GlobalState.serviceWorkerStatus,
+      isActive: true,
+      lastRestart: Date.now()
+    });
+    
+    // 设置定时心跳检查
+    this.heartbeatTimer = setInterval(() => this.heartbeat(), this.heartbeatInterval);
+    
+    // 监听扩展消息作为健康检查
+    this.setupHealthCheckListener();
+  },
+  
+  // 心跳检查
+  heartbeat() {
+    console.log('Service Worker 心跳检查:', new Date().toLocaleString());
+    
+    // 检查关键状态
+    const stats = AIRequestEngine.getStats();
+    console.log('请求统计:', stats);
+    console.log('网络状态:', GlobalState.networkStatus);
+    
+    // 如果网络状态未知，主动检查
+    if (!GlobalState.networkStatus.lastCheck || 
+        Date.now() - GlobalState.networkStatus.lastCheck > 60000) {
+      checkNetworkStatus();
+    }
+  },
+  
+  // 设置健康检查监听器
+  setupHealthCheckListener() {
+    MessageBus.register('healthCheck', (request, sender, sendResponse) => {
+      sendResponse({
+        status: 'healthy',
+        timestamp: Date.now(),
+        stats: AIRequestEngine.getStats(),
+        networkStatus: GlobalState.networkStatus
+      });
+      return true;
+    });
+  },
+  
+  // 停止监控
+  stop() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  },
+  
+  // 记录重启
+  recordRestart() {
+    const status = GlobalState.serviceWorkerStatus;
+    updateState('serviceWorkerStatus', {
+      ...status,
+      lastRestart: Date.now(),
+      restartCount: status.restartCount + 1,
+      isActive: true
+    });
+  }
+};
+
+// ==================== 存储优化引擎 ====================
+const StorageEngine = {
+  cache: new Map(),
+  cacheTimeout: 5000,
+  writeQueue: [],
+  isWriting: false,
+  maxBatchSize: 50,
+  
+  // 带缓存的读取
+  async get(keys, options = {}) {
+    const { useCache = true } = options;
+    const cacheKey = JSON.stringify(keys);
+    
+    if (useCache && this.cache.has(cacheKey)) {
+      const cached = this.cache.get(cacheKey);
+      if (Date.now() - cached.timestamp < this.cacheTimeout) {
+        return cached.value;
+      }
+      this.cache.delete(cacheKey);
+    }
+    
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.get(keys, result => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          if (useCache) {
+            this.cache.set(cacheKey, {
+              value: result,
+              timestamp: Date.now()
+            });
+          }
+          resolve(result);
+        }
+      });
+    });
+  },
+  
+  // 批量写入（带队列）
+  async set(data, options = {}) {
+    const { immediate = false } = options;
+    
+    if (immediate) {
+      return this.performWrite(data);
+    }
+    
+    return new Promise((resolve, reject) => {
+      this.writeQueue.push({ data, resolve, reject });
+      this.processWriteQueue();
+    });
+  },
+  
+  // 处理写入队列
+  async processWriteQueue() {
+    if (this.isWriting || this.writeQueue.length === 0) return;
+    
+    this.isWriting = true;
+    
+    try {
+      // 合并批量写入
+      const batch = [];
+      while (batch.length < this.maxBatchSize && this.writeQueue.length > 0) {
+        batch.push(this.writeQueue.shift());
+      }
+      
+      // 合并所有数据
+      const mergedData = {};
+      batch.forEach(item => {
+        Object.assign(mergedData, item.data);
+      });
+      
+      // 执行写入
+      await this.performWrite(mergedData);
+      
+      // 清除相关缓存
+      Object.keys(mergedData).forEach(key => {
+        for (const [cacheKey, cached] of this.cache) {
+          if (cacheKey.includes(key)) {
+            this.cache.delete(cacheKey);
+          }
+        }
+      });
+      
+      // 解析所有 Promise
+      batch.forEach(item => item.resolve());
+      
+    } catch (error) {
+      // 拒绝所有 Promise
+      this.writeQueue.forEach(item => item.reject(error));
+      this.writeQueue = [];
+    } finally {
+      this.isWriting = false;
+      if (this.writeQueue.length > 0) {
+        setTimeout(() => this.processWriteQueue(), 100);
+      }
+    }
+  },
+  
+  // 执行实际写入
+  performWrite(data) {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.set(data, () => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve();
+        }
+      });
+    });
+  },
+  
+  // 清理缓存
+  clearCache() {
+    this.cache.clear();
+  },
+  
+  // 获取存储使用情况
+  async getStorageInfo() {
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.getBytesInUse(null, bytes => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve({
+            bytesInUse: bytes,
+            quota: chrome.storage.local.QUOTA_BYTES,
+            percentage: (bytes / chrome.storage.local.QUOTA_BYTES * 100).toFixed(2)
+          });
+        }
+      });
+    });
+  }
 };
 
 // 应用代理设置
@@ -178,8 +743,15 @@ function updateContextMenus() {
   });
 }
 
-// 创建右键菜单
-chrome.runtime.onInstalled.addListener(function() {
+// 初始化扩展
+function initializeExtension() {
+  console.log('AI划词搜索扩展初始化中...');
+  
+  // 启动 Service Worker 健康监控
+  ServiceWorkerHealth.start();
+  ServiceWorkerHealth.recordRestart();
+  
+  // 更新上下文菜单
   updateContextMenus();
   
   // 设置键盘快捷键说明
@@ -193,12 +765,6 @@ chrome.runtime.onInstalled.addListener(function() {
   });
   console.debug('已创建历史记录清理定时任务（每小时执行）');
 
-  // 添加插件卸载前的清理
-  chrome.runtime.onSuspend.addListener(function() {
-    console.debug('插件即将卸载，执行最后一次清理');
-    cleanupHistory();
-  });
-
   // 设置网络状态检查定时任务
   chrome.alarms.create('networkCheck', {
     periodInMinutes: 5 // 每5分钟检查一次
@@ -206,7 +772,7 @@ chrome.runtime.onInstalled.addListener(function() {
   
   // 加载历史记录保留天数设置
   chrome.storage.local.get({ historyRetention: 7 }, function(data) {
-    historyRetentionDays = data.historyRetention;
+    updateState('historyRetentionDays', data.historyRetention);
   });
   
   // 加载并应用代理设置
@@ -225,13 +791,34 @@ chrome.runtime.onInstalled.addListener(function() {
     applyProxySettings(data);
   });
   
-  // 打开设置页面
-  chrome.tabs.create({
-    url: 'popup.html'
-  });
-  
-  // 另外在扩展启动时也执行一次清理
+  // 执行首次清理
   console.debug('扩展启动，执行首次清理');
+  cleanupHistory();
+}
+
+// 扩展安装时触发
+chrome.runtime.onInstalled.addListener(function(details) {
+  console.log('扩展安装/更新:', details.reason);
+  initializeExtension();
+  
+  // 只有在新安装时才打开设置页面
+  if (details.reason === 'install') {
+    chrome.tabs.create({
+      url: 'popup.html'
+    });
+  }
+});
+
+// 浏览器启动时触发
+chrome.runtime.onStartup.addListener(function() {
+  console.log('浏览器启动，扩展重新激活');
+  initializeExtension();
+});
+
+// 插件暂停前的清理
+chrome.runtime.onSuspend.addListener(function() {
+  console.debug('插件即将暂停，执行清理');
+  ServiceWorkerHealth.stop();
   cleanupHistory();
 });
 
@@ -251,8 +838,8 @@ chrome.storage.onChanged.addListener(function(changes, namespace) {
     }
     // 监听历史记录保留天数的变化
     if (changes.historyRetention) {
-      historyRetentionDays = changes.historyRetention.newValue;
-      console.debug('历史记录保留天数已更新:', historyRetentionDays);
+      updateState('historyRetentionDays', changes.historyRetention.newValue);
+      console.debug('历史记录保留天数已更新:', GlobalState.historyRetentionDays);
       // 立即执行一次清理
       cleanupHistory();
     }
@@ -304,7 +891,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
   if (!info.selectionText) return;
 
   // 记录选中的文本，但我们会在content script中重新获取完整文本
-  lastSelectedText = info.selectionText;
+  updateState('lastSelectedText', info.selectionText);
 
   if (info.menuItemId === "defaultPrompt") {
     // 使用默认提示词
@@ -351,7 +938,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
         });
       } catch (error) {
         console.debug("右键菜单处理错误:", error);
-        lastError = error;
+        updateState('lastError', error);
       }
     });
   } else if (info.menuItemId.startsWith('prompt_')) {
@@ -396,7 +983,7 @@ chrome.contextMenus.onClicked.addListener(function(info, tab) {
           });
         } catch (error) {
           console.debug("右键菜单处理错误:", error);
-          lastError = error;
+          updateState('lastError', error);
         }
       }
     });
@@ -420,7 +1007,7 @@ chrome.commands.onCommand.addListener(function(command) {
           });
         } catch (error) {
           console.error("快捷键处理错误:", error);
-          lastError = error;
+          updateState('lastError', error);
         }
       }
     });
@@ -438,9 +1025,9 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
   }
 });
 
-// 清理过期的历史记录
-function cleanupHistory() {
-  console.debug('开始清理历史记录, 保留天数:', historyRetentionDays);
+// 清理过期的历史记录（异步版本）
+async function cleanupHistory() {
+  console.debug('开始清理历史记录, 保留天数:', GlobalState.historyRetentionDays);
   
   // 如果清理正在进行中，避免重复执行
   if (cleanupHistory.isRunning) {
@@ -450,11 +1037,14 @@ function cleanupHistory() {
   
   cleanupHistory.isRunning = true;
   
-  chrome.storage.local.get({
-    searchHistory: [],
-    maxChatHistory: 20, // 默认最大对话历史数量
-    saveHistory: true // 检查是否启用了历史记录功能
-  }, function(data) {
+  try {
+    // 使用存储引擎读取数据
+    const data = await StorageEngine.get({
+      searchHistory: [],
+      maxChatHistory: 20,
+      saveHistory: true
+    });
+    
     // 如果历史记录功能被禁用，直接返回
     if (!data.saveHistory) {
       console.debug('历史记录功能已禁用，跳过清理');
@@ -472,75 +1062,68 @@ function cleanupHistory() {
     }
     
     const now = Date.now();
-    const cutoffTime = now - (historyRetentionDays * 24 * 60 * 60 * 1000);
+    const cutoffTime = now - (GlobalState.historyRetentionDays * 24 * 60 * 60 * 1000);
     console.debug('当前时间:', new Date(now).toLocaleString());
     console.debug('清理截止时间:', new Date(cutoffTime).toLocaleString());
-    console.debug('保留天数设置:', historyRetentionDays);
+    console.debug('保留天数设置:', GlobalState.historyRetentionDays);
     
-    try {
-      // 过滤掉过期的记录
-      let updatedHistory = history.filter(item => {
-        if (!item || !item.timestamp) {
-          console.warn('发现无效的历史记录项:', item);
-          return false;
-        }
-        const keep = item.timestamp > cutoffTime;
-        if (!keep) {
-          console.debug('将删除过期记录:', {
-            query: item.query?.substring(0, 50) + '...',
-            timestamp: new Date(item.timestamp).toLocaleString()
-          });
-        }
-        return keep;
-      });
-      
-      // 按类型分组限制数量
-      const chatHistory = updatedHistory.filter(item => item.type === 'chat');
-      const selectHistory = updatedHistory.filter(item => item.type === 'select');
-      const otherHistory = updatedHistory.filter(item => item.type !== 'chat' && item.type !== 'select');
-      
-      // 如果聊天历史超过限制，只保留最新的maxChatHistory条
-      if (chatHistory.length > data.maxChatHistory) {
-        console.debug(`聊天历史超过限制(${data.maxChatHistory})，将清理旧记录`);
-        chatHistory.sort((a, b) => b.timestamp - a.timestamp);
-        chatHistory.splice(data.maxChatHistory);
+    // 过滤掉过期的记录
+    let updatedHistory = history.filter(item => {
+      if (!item || !item.timestamp) {
+        console.warn('发现无效的历史记录项:', item);
+        return false;
       }
-      
-      // 如果划词历史超过限制，只保留最新的maxChatHistory条
-      if (selectHistory.length > data.maxChatHistory) {
-        console.debug(`划词历史超过限制(${data.maxChatHistory})，将清理旧记录`);
-        selectHistory.sort((a, b) => b.timestamp - a.timestamp);
-        selectHistory.splice(data.maxChatHistory);
-      }
-      
-      // 合并历史记录
-      updatedHistory = [...chatHistory, ...selectHistory, ...otherHistory];
-      
-      // 如果超过最大数量限制，删除旧记录
-      if (updatedHistory.length > maxHistoryItems) {
-        updatedHistory = updatedHistory.slice(0, maxHistoryItems);
-      }
-      
-      // 如果有记录被删除，则更新存储
-      if (updatedHistory.length < history.length) {
-        console.debug(`清理完成: 从 ${history.length} 条记录减少到 ${updatedHistory.length} 条`);
-        chrome.storage.local.set({ searchHistory: updatedHistory }, function() {
-          if (chrome.runtime.lastError) {
-            console.error('保存更新后的历史记录失败:', chrome.runtime.lastError);
-          } else {
-            console.debug('已成功保存更新后的历史记录');
-          }
-          cleanupHistory.isRunning = false;
+      const keep = item.timestamp > cutoffTime;
+      if (!keep) {
+        console.debug('将删除过期记录:', {
+          query: item.query?.substring(0, 50) + '...',
+          timestamp: new Date(item.timestamp).toLocaleString()
         });
-      } else {
-        console.debug('没有找到需要清理的记录');
-        cleanupHistory.isRunning = false;
       }
-    } catch (error) {
-      console.error('清理历史记录时发生错误:', error);
-      cleanupHistory.isRunning = false;
+      return keep;
+    });
+    
+    // 按类型分组限制数量
+    const chatHistory = updatedHistory.filter(item => item.type === 'chat');
+    const selectHistory = updatedHistory.filter(item => item.type === 'select');
+    const otherHistory = updatedHistory.filter(item => item.type !== 'chat' && item.type !== 'select');
+    
+    // 如果聊天历史超过限制，只保留最新的maxChatHistory条
+    if (chatHistory.length > data.maxChatHistory) {
+      console.debug(`聊天历史超过限制(${data.maxChatHistory})，将清理旧记录`);
+      chatHistory.sort((a, b) => b.timestamp - a.timestamp);
+      chatHistory.splice(data.maxChatHistory);
     }
-  });
+    
+    // 如果划词历史超过限制，只保留最新的maxChatHistory条
+    if (selectHistory.length > data.maxChatHistory) {
+      console.debug(`划词历史超过限制(${data.maxChatHistory})，将清理旧记录`);
+      selectHistory.sort((a, b) => b.timestamp - a.timestamp);
+      selectHistory.splice(data.maxChatHistory);
+    }
+    
+    // 合并历史记录
+    updatedHistory = [...chatHistory, ...selectHistory, ...otherHistory];
+    
+    // 如果超过最大数量限制，删除旧记录
+    if (updatedHistory.length > GlobalState.maxHistoryItems) {
+      updatedHistory = updatedHistory.slice(0, GlobalState.maxHistoryItems);
+    }
+    
+    // 如果有记录被删除，则更新存储
+    if (updatedHistory.length < history.length) {
+      console.debug(`清理完成: 从 ${history.length} 条记录减少到 ${updatedHistory.length} 条`);
+      await StorageEngine.set({ searchHistory: updatedHistory });
+      console.debug('已成功保存更新后的历史记录');
+    } else {
+      console.debug('没有找到需要清理的记录');
+    }
+    
+  } catch (error) {
+    console.error('清理历史记录时发生错误:', error);
+  } finally {
+    cleanupHistory.isRunning = false;
+  }
 }
 
 // 初始化清理状态标志
@@ -548,176 +1131,193 @@ cleanupHistory.isRunning = false;
 
 // 检查网络状态
 function checkNetworkStatus() {
-  // 使用fetch请求一个小文件来检查网络连接
   fetch('https://www.google.com/favicon.ico', { 
     method: 'HEAD',
     mode: 'no-cors',
     cache: 'no-store'
   })
   .then(() => {
-    networkStatus.lastCheck = Date.now();
-    networkStatus.isOnline = true;
-    networkStatus.lastError = null;
+    updateState('networkStatus', {
+      ...GlobalState.networkStatus,
+      lastCheck: Date.now(),
+      isOnline: true,
+      lastError: null
+    });
     console.log('网络状态检查: 在线');
   })
   .catch(error => {
-    networkStatus.lastCheck = Date.now();
-    networkStatus.isOnline = false;
-    networkStatus.lastError = error.message;
+    updateState('networkStatus', {
+      ...GlobalState.networkStatus,
+      lastCheck: Date.now(),
+      isOnline: false,
+      lastError: error.message
+    });
     console.error('网络状态检查: 离线', error);
   });
 }
 
-// 处理消息
+// 统一消息处理
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  try {
-    if (request.action === 'fetchAIResponse') {
-      console.debug('收到 API 请求:', {
-        url: request.apiUrl,
-        model: request.data.model
-      });
-
-      // 设置请求超时
-      const controller = new AbortController();
-      const timeout = setTimeout(() => {
-        controller.abort();
-      }, 300000); // 5分钟超时
-
-      // 处理 API 请求
-      fetch(request.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${request.apiKey}`
-        },
-        body: JSON.stringify(request.data),
-        signal: controller.signal
-      })
-      .then(async response => {
-        clearTimeout(timeout);
-        
-        console.debug('收到 API 响应:', {
-          status: response.status,
-          ok: response.ok
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorMessage;
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.error?.message || errorJson.message || `请求失败 (${response.status})`;
-          } catch (e) {
-            errorMessage = `请求失败 (${response.status}): ${errorText}`;
-          }
-          console.debug('API 错误:', errorMessage);
-          
-          // 更新网络状态
-          networkStatus.lastError = errorMessage;
-          networkStatus.lastCheck = Date.now();
-          
-          sendResponse({ success: false, error: errorMessage });
-        } else {
-          const data = await response.json();
-          console.debug('API 响应数据:', {
-            hasChoices: !!data.choices,
-            choicesLength: data.choices?.length
+  console.debug('收到消息:', request.action);
+  
+  const handleRequest = async () => {
+    try {
+      switch (request.action) {
+        // ==================== AI 请求处理 ====================
+        case 'fetchAIResponse': {
+          console.debug('收到 API 请求:', {
+            url: request.apiUrl,
+            model: request.data?.model
           });
           
-          // 更新网络状态
-          networkStatus.isOnline = true;
-          networkStatus.lastCheck = Date.now();
-          networkStatus.lastError = null;
-          
-          // 只保留必要的响应数据
-          const cleanedData = {
-            choices: data.choices?.map(choice => ({
-              message: choice.message,
-              finish_reason: choice.finish_reason
-            }))
+          const requestConfig = {
+            url: request.apiUrl,
+            apiKey: request.apiKey,
+            options: {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(request.data)
+            }
           };
           
-          sendResponse({ success: true, data: cleanedData });
+          // 使用 AI 请求引擎处理
+          const result = await AIRequestEngine.addToQueue(requestConfig);
+          
+          // 更新网络状态
+          if (result.success) {
+            updateState('networkStatus', {
+              ...GlobalState.networkStatus,
+              isOnline: true,
+              lastCheck: Date.now(),
+              lastError: null
+            });
+          }
+          
+          sendResponse(result);
+          break;
         }
-      })
-      .catch(error => {
-        clearTimeout(timeout);
         
-        console.debug('API 请求失败:', error);
+        // ==================== 图标 URL ====================
+        case 'getIconUrl':
+          sendResponse({ url: chrome.runtime.getURL('images/icon48.png') });
+          break;
         
-        // 更新网络状态
-        networkStatus.isOnline = false;
-        networkStatus.lastCheck = Date.now();
-        networkStatus.lastError = error.message;
-        
-        // 如果是超时错误
-        if (error.name === 'AbortError') {
-          sendResponse({ success: false, error: '请求超时，请稍后重试' });
-        } else {
-          sendResponse({ success: false, error: error.message });
+        // ==================== 保存搜索历史 ====================
+        case 'saveSearchHistory': {
+          const id = await saveSearchHistory(request.data);
+          sendResponse({ id: id });
+          break;
         }
-      });
-
-      return true; // 保持消息通道开放
-    } else if (request.action === 'getIconUrl') {
-      sendResponse({ url: chrome.runtime.getURL('images/icon48.png') });
-    } else if (request.action === 'saveSearchHistory') {
-      const id = saveSearchHistory(request.data);
-      sendResponse({ id: id });
-    } else if (request.action === 'updateHistoryRetention') {
-      console.debug('收到更新历史记录保留天数请求:', request.days);
-      historyRetentionDays = request.days;
-      // 立即执行一次清理
-      cleanupHistory();
-      sendResponse({ success: true });
-    } else if (request.action === 'openSettings') {
-      // 尝试打开设置页面
-      try {
-        chrome.runtime.openOptionsPage(function() {
-          if (chrome.runtime.lastError) {
-            // 如果 openOptionsPage 失败，尝试使用 tabs.create
-            chrome.tabs.create({
-              url: chrome.runtime.getURL('popup.html')
-            }, function() {
+        
+        // ==================== 更新历史记录保留天数 ====================
+        case 'updateHistoryRetention':
+          console.debug('收到更新历史记录保留天数请求:', request.days);
+          updateState('historyRetentionDays', request.days);
+          await cleanupHistory();
+          sendResponse({ success: true });
+          break;
+        
+        // ==================== 打开设置页面 ====================
+        case 'openSettings':
+          try {
+            chrome.runtime.openOptionsPage(function() {
               if (chrome.runtime.lastError) {
-                console.debug('打开设置页面失败:', chrome.runtime.lastError);
-                sendResponse({ success: false, error: '无法打开设置页面' });
+                chrome.tabs.create({
+                  url: chrome.runtime.getURL('popup.html')
+                }, function() {
+                  if (chrome.runtime.lastError) {
+                    console.debug('打开设置页面失败:', chrome.runtime.lastError);
+                    sendResponse({ success: false, error: '无法打开设置页面' });
+                  } else {
+                    sendResponse({ success: true });
+                  }
+                });
               } else {
                 sendResponse({ success: true });
               }
             });
-          } else {
-            sendResponse({ success: true });
+          } catch (error) {
+            console.debug('打开设置页面时出错:', error);
+            sendResponse({ success: false, error: '无法打开设置页面' });
           }
-        });
-      } catch (error) {
-        console.debug('打开设置页面时出错:', error);
-        sendResponse({ success: false, error: '无法打开设置页面' });
+          return;
+        
+        // ==================== 获取最后错误 ====================
+        case 'getLastError':
+          sendResponse({ error: GlobalState.lastError });
+          updateState('lastError', null);
+          break;
+        
+        // ==================== 获取网络状态 ====================
+        case 'getNetworkStatus':
+          sendResponse({ 
+            status: GlobalState.networkStatus,
+            serviceWorkerStatus: GlobalState.serviceWorkerStatus,
+            requestStats: AIRequestEngine.getStats(),
+            extensionInfo: {
+              version: chrome.runtime.getManifest().version,
+              id: chrome.runtime.id
+            }
+          });
+          break;
+        
+        // ==================== 获取请求统计 ====================
+        case 'getRequestStats':
+          sendResponse({
+            success: true,
+            stats: AIRequestEngine.getStats()
+          });
+          break;
+        
+        // ==================== 取消所有请求 ====================
+        case 'cancelAllRequests':
+          AIRequestEngine.cancelAllRequests();
+          sendResponse({ success: true });
+          break;
+        
+        // ==================== 健康检查 ====================
+        case 'healthCheck':
+          sendResponse({
+            status: 'healthy',
+            timestamp: Date.now(),
+            stats: AIRequestEngine.getStats(),
+            networkStatus: GlobalState.networkStatus,
+            serviceWorkerStatus: GlobalState.serviceWorkerStatus
+          });
+          break;
+        
+        // ==================== 存储信息 ====================
+        case 'getStorageInfo':
+          try {
+            const info = await StorageEngine.getStorageInfo();
+            sendResponse({ success: true, data: info });
+          } catch (error) {
+            sendResponse({ success: false, error: error.message });
+          }
+          break;
+        
+        // ==================== 默认处理 ====================
+        default:
+          console.warn('未知的消息类型:', request.action);
+          sendResponse({ success: false, error: '未知的消息类型' });
       }
-      return true; // 表示我们会异步发送响应
-    } else if (request.action === 'getLastError') {
-      sendResponse({ error: lastError });
-      lastError = null; // 清除错误
-    } else if (request.action === 'getNetworkStatus') {
+    } catch (error) {
+      console.error('消息处理错误:', error);
       sendResponse({ 
-        status: networkStatus,
-        extensionInfo: {
-          version: chrome.runtime.getManifest().version,
-          id: chrome.runtime.id
-        }
+        success: false, 
+        error: error.message || '内部错误，请稍后重试' 
       });
     }
-  } catch (error) {
-    console.debug('消息处理错误:', error);
-    // 清理错误状态
-    lastError = null;
-    sendResponse({ success: false, error: '内部错误，请稍后重试' });
-  }
+  };
+  
+  handleRequest();
   return true; // 保持消息通道开放
 });
 
-// 保存搜索历史
-function saveSearchHistory(data) {
+// 保存搜索历史（异步版本）
+async function saveSearchHistory(data) {
   const id = generateId();
   const timestamp = Date.now();
   
@@ -727,82 +1327,84 @@ function saveSearchHistory(data) {
     queryLength: data.query.length
   });
   
-  chrome.storage.local.get({ 
-    saveHistory: true,
-    maxChatHistory: 20 // 默认最大对话历史数量
-  }, function(config) {
+  try {
+    // 使用存储引擎读取配置
+    const config = await StorageEngine.get({ 
+      saveHistory: true,
+      maxChatHistory: 20
+    });
+    
     // 如果用户禁用了历史记录，则不保存
     if (!config.saveHistory) {
       console.debug('历史记录功能已禁用，跳过保存');
-      return;
+      return id;
     }
     
-    chrome.storage.local.get('searchHistory', function(storage) {
-      let history = storage.searchHistory || [];
-      console.debug('当前历史记录数量:', history.length);
-      
-      // 添加新记录，保留type字段
-      const newRecord = {
-        id: id,
-        query: data.query,
-        response: data.response,
-        timestamp: timestamp,
-        rating: 0,
-        type: data.type === 'search' ? 'select' : (data.type || 'other')
-      };
-      
-      // 限制查询和响应的长度
-      if (newRecord.query.length > 5000) {
-        newRecord.query = newRecord.query.substring(0, 5000) + '...';
-      }
-      if (newRecord.response.length > 10000) {
-        newRecord.response = newRecord.response.substring(0, 10000) + '...';
-      }
-      
-      // 添加新记录到开头
-      history.unshift(newRecord);
-      
-      // 按类型分组限制数量
-      const chatHistory = history.filter(item => item.type === 'chat');
-      const selectHistory = history.filter(item => item.type === 'select');
-      const otherHistory = history.filter(item => item.type !== 'chat' && item.type !== 'select');
-      
-      // 如果聊天历史超过限制，只保留最新的maxChatHistory条
-      if (chatHistory.length > config.maxChatHistory) {
-        console.debug(`聊天历史超过限制(${config.maxChatHistory})，将清理旧记录`);
-        chatHistory.splice(config.maxChatHistory);
-      }
-      
-      // 如果划词历史超过限制，只保留最新的maxChatHistory条
-      if (selectHistory.length > config.maxChatHistory) {
-        console.debug(`划词历史超过限制(${config.maxChatHistory})，将清理旧记录`);
-        selectHistory.splice(config.maxChatHistory);
-      }
-      
-      // 合并历史记录
-      history = [...chatHistory, ...selectHistory, ...otherHistory];
-      
-      // 如果超过最大数量限制，删除旧记录
-      if (history.length > maxHistoryItems) {
-        history = history.slice(0, maxHistoryItems);
-      }
-      
-      // 清理超过保留天数的记录
-      const cutoffTime = Date.now() - (historyRetentionDays * 24 * 60 * 60 * 1000);
-      history = history.filter(item => item.timestamp >= cutoffTime);
-      
-      // 保存更新后的历史记录
-      chrome.storage.local.set({ searchHistory: history }, function() {
-        if (chrome.runtime.lastError) {
-          console.error('保存历史记录失败:', chrome.runtime.lastError);
-        } else {
-          console.debug('历史记录保存成功，新的总数量:', history.length);
-        }
-      });
-    });
-  });
-  
-  return id;
+    // 读取现有历史记录
+    const storage = await StorageEngine.get({ searchHistory: [] });
+    let history = storage.searchHistory || [];
+    console.debug('当前历史记录数量:', history.length);
+    
+    // 添加新记录，保留type字段
+    const newRecord = {
+      id: id,
+      query: data.query,
+      response: data.response,
+      timestamp: timestamp,
+      rating: 0,
+      type: data.type === 'search' ? 'select' : (data.type || 'other')
+    };
+    
+    // 限制查询和响应的长度
+    if (newRecord.query.length > 5000) {
+      newRecord.query = newRecord.query.substring(0, 5000) + '...';
+    }
+    if (newRecord.response.length > 10000) {
+      newRecord.response = newRecord.response.substring(0, 10000) + '...';
+    }
+    
+    // 添加新记录到开头
+    history.unshift(newRecord);
+    
+    // 按类型分组限制数量
+    const chatHistory = history.filter(item => item.type === 'chat');
+    const selectHistory = history.filter(item => item.type === 'select');
+    const otherHistory = history.filter(item => item.type !== 'chat' && item.type !== 'select');
+    
+    // 如果聊天历史超过限制，只保留最新的maxChatHistory条
+    if (chatHistory.length > config.maxChatHistory) {
+      console.debug(`聊天历史超过限制(${config.maxChatHistory})，将清理旧记录`);
+      chatHistory.splice(config.maxChatHistory);
+    }
+    
+    // 如果划词历史超过限制，只保留最新的maxChatHistory条
+    if (selectHistory.length > config.maxChatHistory) {
+      console.debug(`划词历史超过限制(${config.maxChatHistory})，将清理旧记录`);
+      selectHistory.splice(config.maxChatHistory);
+    }
+    
+    // 合并历史记录
+    history = [...chatHistory, ...selectHistory, ...otherHistory];
+    
+    // 如果超过最大数量限制，删除旧记录
+    if (history.length > GlobalState.maxHistoryItems) {
+      history = history.slice(0, GlobalState.maxHistoryItems);
+    }
+    
+    // 清理超过保留天数的记录
+    const cutoffTime = Date.now() - (GlobalState.historyRetentionDays * 24 * 60 * 60 * 1000);
+    history = history.filter(item => item.timestamp >= cutoffTime);
+    
+    // 使用存储引擎保存
+    await StorageEngine.set({ searchHistory: history });
+    console.debug('历史记录保存成功，新的总数量:', history.length);
+    
+    return id;
+    
+  } catch (error) {
+    console.error('保存历史记录失败:', error);
+    return id;
+  }
 }
 
 // 生成唯一ID
