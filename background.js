@@ -674,12 +674,45 @@ function applyProxySettings(settings) {
   }
 }
 
+// 上下文菜单更新标志 - 防止并发调用
+let isUpdatingContextMenus = false;
+
 // 更新上下文菜单
 function updateContextMenus() {
+  // 如果正在更新，跳过本次调用
+  if (isUpdatingContextMenus) {
+    console.log('上下文菜单正在更新中，跳过本次调用');
+    return;
+  }
+  
+  isUpdatingContextMenus = true;
+  
   // 先移除所有现有的菜单项
   chrome.contextMenus.removeAll(() => {
+    // 检查是否有错误
+    if (chrome.runtime.lastError) {
+      console.warn('移除上下文菜单时出错:', chrome.runtime.lastError);
+    }
+    
+    console.log('开始重建上下文菜单...');
+    
+    // 安全的创建菜单项函数
+    function createMenuItem(options) {
+      try {
+        chrome.contextMenus.create(options, () => {
+          if (chrome.runtime.lastError) {
+            console.warn(`创建菜单项 "${options.id}" 时出错:`, chrome.runtime.lastError.message);
+          } else {
+            console.log(`✅ 菜单项 "${options.id}" 创建成功`);
+          }
+        });
+      } catch (error) {
+        console.error(`创建菜单项 "${options.id}" 时异常:`, error);
+      }
+    }
+
     // 创建主菜单项
-    chrome.contextMenus.create({
+    createMenuItem({
       id: "aiSearchParent",
       title: "AI划词搜索",
       contexts: ["selection"]
@@ -691,9 +724,10 @@ function updateContextMenus() {
       prompt: '请解释以下内容:'
     }, function(data) {
       const templates = data.promptTemplates;
+      console.log(`加载了 ${templates.length} 个提示词模板`);
       
       // 创建默认提示词前缀菜单项
-      chrome.contextMenus.create({
+      createMenuItem({
         id: "defaultPrompt",
         title: "默认提示词前缀",
         parentId: "aiSearchParent",
@@ -701,7 +735,7 @@ function updateContextMenus() {
       });
       
       // 添加分隔线
-      chrome.contextMenus.create({
+      createMenuItem({
         id: "separator",
         type: "separator",
         parentId: "aiSearchParent",
@@ -718,11 +752,13 @@ function updateContextMenus() {
         groupedTemplates[category].push(template);
       });
 
+      console.log('分类后的提示词:', groupedTemplates);
+
       // 为每个分类创建子菜单
       Object.entries(groupedTemplates).forEach(([category, categoryTemplates]) => {
         // 创建分类子菜单
         const categoryId = `category_${category}`;
-        chrome.contextMenus.create({
+        createMenuItem({
           id: categoryId,
           title: category,
           parentId: "aiSearchParent",
@@ -731,14 +767,19 @@ function updateContextMenus() {
 
         // 为分类下的每个提示词创建菜单项
         categoryTemplates.forEach(template => {
-          chrome.contextMenus.create({
-            id: `prompt_${template.title}`,
+          const promptId = `prompt_${template.title}`;
+          createMenuItem({
+            id: promptId,
             title: template.title,
             parentId: categoryId,
             contexts: ["selection"]
           });
         });
       });
+      
+      // 标记更新完成
+      isUpdatingContextMenus = false;
+      console.log('✅ 上下文菜单重建完成');
     });
   });
 }
