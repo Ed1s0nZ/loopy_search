@@ -1,3 +1,14 @@
+// ==================== 全局变量声明 ====================
+// 这些变量在代码中被使用，但需要显式声明以避免 ReferenceError
+let aiSearchResult = null;
+let aiSearchButton = null;
+let selectedText = '';
+let rawResult = '';
+let isMarkdownMode = true;
+let currentSearchId = null;
+let showFloatingButton = false;
+let conversationHistory = [];
+
 // ==================== 消息通信系统（内容脚本端）====================
 const MessageBus = {
   config: {
