@@ -6,7 +6,10 @@ export function createFrameUI({ request, guarded, root = document }) {
     for (const frame of catalog) {
       const label = document.createElement('label'); label.className = 'check scope-option';
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = chosen.has(frame.frameId); checkbox.disabled = frame.frameId === 0; checkbox.dataset.frameId = frame.frameId;
-      checkbox.addEventListener('change', () => { if (checkbox.checked) chosen.add(frame.frameId); else chosen.delete(frame.frameId); });
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked && chosen.size >= 16) { checkbox.checked = false; $('frameHint').textContent = '最多选择 16 个框架（含顶层），请先取消其他选择。'; return; }
+        if (checkbox.checked) chosen.add(frame.frameId); else chosen.delete(frame.frameId);
+      });
       label.append(checkbox, document.createTextNode(`#${frame.frameId} · ${frame.url}`)); $('frameChoices').append(label);
     }
     $('frameHint').textContent = '最多 16 个框架；未选框架正文不读取。框架操作会短暂激活目标页并恢复原活动页；隐藏/离屏时拒绝，请先显示它。';
@@ -14,12 +17,15 @@ export function createFrameUI({ request, guarded, root = document }) {
   $('target').addEventListener('change', reset);
   $('loadFrames').addEventListener('click', () => {
     // Called directly from the click gesture, before awaiting anything.
-    const permission = chrome.permissions.request({ permissions: ['webNavigation'] });
     void guarded(async () => {
+      const permission = chrome.permissions.request({ permissions: ['webNavigation'] });
       if (!await permission) throw new Error('框架权限未允许；顶层任务仍可用');
       const next = await request('assistant:frames', { tabId: Number($('target').value) });
       catalog = next; chosen.clear(); chosen.add(0); draw();
     });
+  });
+  chrome.permissions.onRemoved.addListener(removed => {
+    if (removed.permissions?.includes('webNavigation')) { reset(); $('frameHint').textContent = '框架权限已撤销；重新加载列表可再次申请，顶层任务仍可用。'; }
   });
   reset();
   return {

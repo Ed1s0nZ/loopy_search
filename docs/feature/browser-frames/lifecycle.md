@@ -17,3 +17,9 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 真实 Chromium 本地测试新增 5 项（含父测试）：闭合/嵌套/slot fallback、隐藏/输入值过滤、影子填写和 mutation 失效、跨源 iframe/srcdoc/未选择/隐藏拒绝、助手切换后二次预览与单次确认、子/父文档重载。测试临时复制扩展并预授予 webNavigation，**不代表原生可选权限弹窗已验证**。本轮模型请求全部本地合成，无付费 API 调用，无真实站点写入。
 
 待 F5：扩展同源/about:blank、实际 slot 分发、影子 select/click 和自动授权、权限 UI/视觉边界/预算更多覆盖；完整需求映射和 UI 检视。待 F6：review、changelog、草稿 PR 与 CI。不得据现有子集测试宣称 BA-FRAME 全量完成。
+
+### F4 验收补充
+
+实际分发到闭合根 slot 的 light DOM 标签被正确用于按钮识别；真实闭合根 click/select 和隐藏宿主旧引用拒绝通过。新增同源 HTTP iframe 与继承来源 about:blank 实际注入观察，内容保持独立，未选择前拒绝读取。框架专项现 7 项（含父测试），其余现有 27 项扩展回归通过。框架 UI 限制最多 16 项、列表可滚动；撤销 webNavigation 后重置选择并给出提示；权限申请仍在点击的同步调用链内，异常进入统一 notice。
+
+尚未将上述证据扩大为所有 BF 要求完成：真实原生权限弹窗、影子自动授权、预算与视觉组合、完整 UI 仍需补验。无付费模型请求。

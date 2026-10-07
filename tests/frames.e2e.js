@@ -25,15 +25,19 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] })); return;
     }
     res.setHeader('content-type', 'text/html');
-    res.end(`<title>frame fixture</title><div id="closed"></div><div id="hidden" hidden></div>
+    if (req.url === '/same') { res.end('<p>same-origin-only</p><input aria-label="same query">'); return; }
+    res.end(`<title>frame fixture</title><div id="closed"><span slot="action">distributed-action</span></div><div id="hidden" hidden></div>
       <iframe src="${childUrl}" height="180"></iframe>
       <iframe srcdoc="<p>srcdoc-only</p><input aria-label='srcdoc query'>" height="180"></iframe>
       <iframe src="${childUrl}?hidden" style="display:none"></iframe>
+      <iframe src="/same" height="80"></iframe><iframe id="blank" height="80"></iframe>
       <script>
       const root=document.querySelector('#closed').attachShadow({mode:'closed'});window.fixtureRoot=root;
-      root.innerHTML='<p>closed-visible</p><input aria-label="shadow query"><input type="password" value="private-value"><button><slot>slot-action</slot></button><div id="nested"></div>';
+      root.innerHTML='<p>closed-visible</p><input aria-label="shadow query"><input type="password" value="private-value"><button><slot name="action">slot-action</slot></button><select aria-label="shadow kind"><option value="one">one</option><option value="two">two</option></select><div id="nested"></div>';
+      window.shadowClicks=0;root.querySelector('button').onclick=()=>window.shadowClicks++;
       root.querySelector('#nested').attachShadow({mode:'open'}).innerHTML='<p>nested-visible</p>';
       document.querySelector('#hidden').attachShadow({mode:'closed'}).innerHTML='<p>hidden-private</p><input aria-label="hidden query">';
+      document.querySelector('#blank').contentDocument.body.innerHTML='<p>blank-inherited-only</p><input aria-label="blank query">';
       </script>`);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -48,7 +52,7 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`], viewport: { width: 1100, height: 900 } });
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
     const page = await context.newPage(); await page.goto(`http://127.0.0.1:${server.address().port}/`);
-    await page.waitForFunction(() => frames.length === 3 && document.querySelector('#closed').getBoundingClientRect().height > 0);
+    await page.waitForFunction(() => frames.length === 5 && document.querySelector('#closed').getBoundingClientRect().height > 0);
     const harness = await context.newPage(); await harness.goto(`chrome-extension://${new URL(worker.url()).host}/assistant.html`);
     await harness.evaluate(async () => {
       const { createBrowserTools } = await import('./assistant/browser.js');
@@ -71,7 +75,7 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
     await t.test('closed/nested roots and slot labels are observed; hidden hosts and values are excluded', async () => {
       root = await run('observe'); assert(!root.error, root.message);
       assert(root.text.includes('closed-visible')); assert(root.text.includes('nested-visible'));
-      assert(root.elements.some(item => item.label.includes('slot-action')));
+      assert(root.elements.some(item => item.label.includes('distributed-action')));
       assert(!JSON.stringify(root).includes('hidden-private')); assert(!JSON.stringify(root).includes('private-value'));
       assert(!root.text.includes('cross-origin-only'));
       const input = root.elements.find(item => item.label === 'shadow query'); assert(input);
@@ -80,6 +84,20 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       root = await run('observe');
       await page.evaluate(() => fixtureRoot.querySelector('p').textContent = 'changed');
       assert.equal((await run('execute', { key: root.documentKey, action: { tool: 'fill', args: { snapshotId: root.snapshotId, elementId: root.elements.find(item => item.label === 'shadow query').id, value: 'forbidden' } } })).error, 'STALE_SNAPSHOT');
+    });
+    await t.test('closed-root click/select work and hidden hosts invalidate old references', async () => {
+      let observation = await run('observe');
+      const button = observation.elements.find(item => item.label.includes('distributed-action'));
+      assert((await run('execute', { key: observation.documentKey, action: { tool: 'click', args: { snapshotId: observation.snapshotId, elementId: button.id } } })).ok);
+      assert.equal(await page.evaluate(() => window.shadowClicks), 1);
+      observation = await run('observe');
+      const select = observation.elements.find(item => item.tag === 'select');
+      assert((await run('execute', { key: observation.documentKey, action: { tool: 'select', args: { snapshotId: observation.snapshotId, elementId: select.id, value: 'two' } } })).ok);
+      assert.equal(await page.evaluate(() => fixtureRoot.querySelector('select').value), 'two');
+      observation = await run('observe'); await page.evaluate(() => document.querySelector('#closed').hidden = true);
+      assert.equal((await run('execute', { key: observation.documentKey, action: { tool: 'click', args: { snapshotId: observation.snapshotId, elementId: observation.elements.find(item => item.label.includes('distributed-action')).id } } })).error, 'STALE_SNAPSHOT');
+      assert(!(await run('observe')).text.includes('closed-visible'));
+      await page.evaluate(() => document.querySelector('#closed').hidden = false);
     });
     await t.test('only explicitly selected frames can be read; cross-origin and srcdoc route correctly', async () => {
       catalog = await run('catalog'); cross = catalog.find(item => item.url === childUrl); srcdoc = catalog.find(item => item.url === 'about:srcdoc'); hidden = catalog.find(item => item.url.includes('?hidden'));
@@ -122,6 +140,17 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       reply = await call('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true }); assert(reply.success, reply.error);
       await waitState('completed'); assert.equal(modelCalls, 3);
       assert.equal(await page.frames().find(frame => frame.url() === childUrl).locator('input').inputValue(), 'confirmed-child');
+    });
+    await t.test('same-origin and inherited about:blank remain separate explicitly selected documents', async () => {
+      const current = await run('catalog'); const same = current.find(item => item.url.endsWith('/same'));
+      const blank = current.find(item => item.url === 'about:blank'); assert(same && blank);
+      assert.equal((await run('observe', { frameId: same.frameId })).error, 'FRAME_SCOPE');
+      const selected = current.filter(item => [0, cross.frameId, same.frameId, blank.frameId].includes(item.frameId));
+      await run('prepare', { ids: selected.map(item => item.frameId), documents: selected });
+      const local = await run('observe', { frameId: same.frameId }); assert(!local.error, local.message); assert(local.text.includes('same-origin-only'));
+      const inherited = await run('observe', { frameId: blank.frameId }); assert(!inherited.error, inherited.message);
+      assert.equal(inherited.url, '[嵌入文档]'); assert(inherited.text.includes('blank-inherited-only'));
+      assert(!inherited.text.includes('same-origin-only'));
     });
     await t.test('child reload rejects old document; parent reload revokes selected children', async () => {
       const observation = await run('observe', { frameId: cross.frameId });
