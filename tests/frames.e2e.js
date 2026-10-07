@@ -9,7 +9,7 @@ import { join, resolve, relative } from 'node:path';
 test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeout: 90000 }, async t => {
   const temp = await mkdtemp(join(tmpdir(), 'loopy-frame-test-'));
   const extension = join(temp, 'extension'); let context; let desiredFrame; let modelCalls = 0; const bodies = [];
-  let behavior = 'frame'; let pendingModel;
+  let behavior = 'frame'; let pendingModel; let desiredTab; let navigationUrl;
   const child = createServer((req, res) => {
     res.setHeader('content-type', 'text/html');
     res.end(req.url.startsWith('/nested-parent') ? '<p>nested parent</p><iframe src="/child?nested" height="100"></iframe>'
@@ -34,6 +34,13 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       if (behavior === 'vision-switch') {
         const switches = input.messages.filter(message => message.role === 'assistant' && message.content.includes('"tool":"switch_frame"')).length;
         action = switches < 2 ? { tool: 'switch_frame', args: { frameId: switches === 0 ? desiredFrame : 0 } } : { tool: 'finish', args: { summary: 'visual frame test' } };
+      }
+      if (behavior === 'tab-mix' || behavior === 'frame-navigate') {
+        const steps = input.messages.filter(message => message.role === 'assistant').length;
+        const sequence = behavior === 'tab-mix'
+          ? [{ tool: 'list_frames', args: {} }, { tool: 'switch_frame', args: { frameId: desiredFrame } }, { tool: 'switch_tab', args: { tabId: desiredTab } }, { tool: 'switch_frame', args: { frameId: desiredFrame } }]
+          : [{ tool: 'switch_frame', args: { frameId: desiredFrame } }, { tool: 'scroll', args: { direction: 'down', amount: 200 } }, { tool: 'navigate', args: { url: navigationUrl } }];
+        action = sequence[steps] || { tool: 'finish', args: { summary: 'mixed scope complete' } };
       }
       const respond = () => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] })); };
       if (behavior === 'shadow-slow') { pendingModel = respond; return; }
@@ -257,10 +264,12 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       await page.evaluate(() => new Promise(resolve => { const frame = document.createElement('iframe'); frame.id = 'sandbox-test'; frame.sandbox = ''; frame.srcdoc = '<p>sandbox-isolated-only</p>'; frame.addEventListener('load', resolve, { once: true }); document.body.prepend(frame); }));
       const current = await run('catalog'); const isolated = current.find(item => !before.has(item.frameId)); assert(isolated);
       const selected = current.filter(item => [0, cross.frameId, isolated.frameId].includes(item.frameId)); await run('prepare', { ids: selected.map(item => item.frameId), documents: selected });
+      await page.locator('#sandbox-test').scrollIntoViewIfNeeded();
       const observation = await run('observe', { frameId: isolated.frameId });
       if (observation.error) { assert.equal(observation.error, 'PAGE_UNAVAILABLE'); t.diagnostic('Chrome refused sandbox scripting explicitly'); }
       else { assert(observation.text.includes('sandbox-isolated-only')); assert(!observation.text.includes('closed-visible')); t.diagnostic('Chrome permits isolated-world observation of this sandbox document'); }
       await page.locator('#sandbox-test').evaluate(element => element.remove());
+      await page.evaluate(() => scrollTo(0, 0));
     });
     await t.test('node and shadow-root budgets fail explicitly; bounded output recovers after removal', async () => {
       await page.evaluate(() => {
@@ -268,7 +277,11 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
         for (let i = 0; i < 15100; i++) { const item = document.createElement('div'); item.textContent = 'node'; fragment.append(item); }
         box.append(fragment); document.body.append(box);
       });
-      assert.equal((await run('observe')).error, 'DOCUMENT_LIMIT'); await page.locator('#budget').evaluate(element => element.remove());
+      assert.equal((await run('observe')).error, 'DOCUMENT_LIMIT');
+      const reply = await call('assistant:prepare', { tabId: await harness.evaluate(() => globalThis.frameTestTab), mode: 'read', task: 'local budget test' });
+      assert(reply.success, reply.error); assert.equal(reply.data.error.code, 'DOCUMENT_LIMIT');
+      await harness.waitForFunction(() => document.querySelector('#result').textContent.includes('DOCUMENT_LIMIT'));
+      await page.locator('#budget').evaluate(element => element.remove());
       await page.evaluate(() => {
         const box = document.createElement('section'); box.id = 'budget';
         for (let i = 0; i < 65; i++) { const host = document.createElement('div'); host.attachShadow({ mode: 'closed' }).textContent = 'root'; box.append(host); }
@@ -292,6 +305,38 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       assert.equal(await page.frames().find(frame => frame.url() === childUrl).locator('input').inputValue(), '');
       await page.reload(); assert.deepEqual((await run('list')).map(item => item.frameId), [0]);
       assert.equal((await run('observe', { frameId: cross.frameId })).error, 'FRAME_SCOPE');
+    });
+    await t.test('switching tabs resets to root and refuses the previous tab child frame', async () => {
+      const other = await context.newPage(); await other.goto(`http://127.0.0.1:${server.address().port}/same`);
+      try {
+        const tabId = await harness.evaluate(() => globalThis.frameTestTab);
+        desiredTab = await harness.evaluate(async () => (await chrome.tabs.query({})).find(tab => tab.url.endsWith('/same')).id);
+        const current = await run('catalog'); desiredFrame = current.find(item => item.url === childUrl).frameId;
+        const selected = current.filter(item => [0, desiredFrame].includes(item.frameId)); behavior = 'tab-mix';
+        const reply = await call('assistant:prepare', { tabId, tabIds: [tabId, desiredTab], mode: 'read', task: 'local mixed tabs', frameIds: selected.map(item => item.frameId), frameDocuments: selected }); assert(reply.success, reply.error);
+        await call('assistant:preview', { id: reply.data.id, previewId: reply.data.preview.id });
+        let state = await waitTask('preview'); assert.equal(state.frameId, desiredFrame);
+        await call('assistant:preview', { id: state.id, previewId: state.preview.id });
+        state = await waitTask('preview'); assert.equal(state.tabId, desiredTab); assert.equal(state.frameId, 0);
+        assert.deepEqual(state.preview.frames.map(frame => frame.frameId), [0]);
+        await call('assistant:preview', { id: state.id, previewId: state.preview.id });
+        state = await waitTask('failed'); assert.equal(state.error.code, 'FRAME_SCOPE');
+        assert.equal(other.url(), `http://127.0.0.1:${server.address().port}/same`);
+      } finally { await other.close(); }
+    });
+    await t.test('child scrolling stays in its document; confirmed navigation replaces the entire tab', async () => {
+      behavior = 'frame-navigate'; navigationUrl = `http://127.0.0.1:${server.address().port}/same`;
+      const tabId = await harness.evaluate(() => globalThis.frameTestTab); const current = await run('catalog'); desiredFrame = current.find(item => item.url === childUrl).frameId;
+      const selected = current.filter(item => [0, desiredFrame].includes(item.frameId));
+      const reply = await call('assistant:prepare', { tabId, mode: 'assist', task: 'local root navigation', frameIds: selected.map(item => item.frameId), frameDocuments: selected }); assert(reply.success, reply.error);
+      await call('assistant:preview', { id: reply.data.id, previewId: reply.data.preview.id });
+      let state = await waitTask('preview'); assert.equal(state.frameId, desiredFrame);
+      await call('assistant:preview', { id: state.id, previewId: state.preview.id });
+      state = await waitTask('confirmation'); assert.equal(state.pending.action.tool, 'navigate'); assert.notEqual(page.url(), navigationUrl);
+      await call('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true });
+      state = await waitTask('preview'); assert.equal(state.frameId, 0); assert.equal(page.url(), navigationUrl); assert.equal(page.frames().length, 1);
+      assert.deepEqual(state.preview.frames.map(frame => frame.frameId), [0]);
+      await call('assistant:preview', { id: state.id, previewId: state.preview.id }); await waitTask('completed');
     });
   } finally {
     await context?.close(); await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => child.close(resolve))]);

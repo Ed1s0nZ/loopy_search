@@ -53,3 +53,9 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 当前 Chromium 对 sandbox="" 的 srcdoc 允许扩展隔离世界注入，实测仅观察其自身安全文本，无父页面内容；代码保留不可注入时 PAGE_UNAVAILABLE 显式错误，不以 sandbox 名称断言全允许/全禁止。首次 fixture 的 load 监听在插入后安装导致等待，终止该已确认测试进程；改为先装监听后插入，再运行 16 项框架专项全部通过。不是产品错误，也未访问真实用户页面。
 
 模型提示补 list_frames/switch_frame 的只读工具清单，与真实 schema 对齐。F5 仍进行中，未完成原生弹窗/其余混合场景。
+
+### F4 标签/导航/预算 UI 组合
+
+实际只读模型调用 list_frames 后切换子 frame，随后 switch_tab：新标签预览 frameId=0、frames 只有 0；模型用旧标签 child ID 得 FRAME_SCOPE。辅助模式子 frame 调用 scroll 后 navigate：确认前顶层 URL 不变，批准后整个标签换成 /same、仅剩顶层文档，frame=0 且新文档先 preview。这里只证明 scroll 路由成功，滚动量仍需长页面 scrollY 验证。预算超限真实助手 UI 显示 DOCUMENT_LIMIT。新开/关闭沿用既有顶层回归，需最终检查混合路径。
+
+复查发现 configured opaque key 未传到 observation/link/tab URL 脱敏；现在 publicUrl 接受 secrets 并在这些投影传入，redactText 也排除 encodeURIComponent 形式。单元验证不依赖 sk 格式，且仅用合成 opaque token，不采集本机真实密钥。上一 head 257a5a8 的 CI run 37596497817 SUCCESS，不冒充本次新 head CI。

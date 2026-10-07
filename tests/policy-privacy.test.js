@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { validateAction, parseAction, assertEndpoint, trustedPage } from '../assistant/policy.js';
 import { redactText, publicUrl, sanitizeObservation } from '../assistant/privacy.js';
 import { findLeaks } from '../scripts/secret-scan.mjs';
+import { tabSummary } from '../assistant/scope.js';
 
 const secret = ['sk', 'synthetic'.repeat(4)].join('-');
 test('tool schema refuses code, unknown parameters, invalid references and writes in read mode', () => {
@@ -30,6 +31,15 @@ test('privacy strips actual secrets, credential patterns and URL query/fragment'
   const observed = sanitizeObservation({ snapshotId: 'snapshot', url: 'https://example.test/?q=x', text: secret,
     elements: [{ id: 'e1', tag: 'input', type: 'text', label: secret, value: 'must not pass' }] }, [secret]);
   assert(!JSON.stringify(observed).includes('must not pass')); assert(!JSON.stringify(observed).includes(secret));
+});
+test('configured opaque credentials are removed from page, link and tab URL paths, including encoded form', () => {
+  const opaque = ['opaque', 'fixture+token'].join('/');
+  for (const value of [opaque, encodeURIComponent(opaque)]) {
+    const url = `https://example.test/${value}/resource`;
+    const observed = sanitizeObservation({ url, elements: [{ id: 'e1', href: url }] }, [opaque]);
+    assert(!JSON.stringify(observed).includes(value)); assert(!publicUrl(url, [opaque]).includes(value));
+    assert(!tabSummary({ id: 1, url }, [opaque]).url.includes(value));
+  }
 });
 test('only exact internal assistant origin can use privileged API', () => {
   const runtime = { id: 'extension', getURL: path => `chrome-extension://extension/${path}` };

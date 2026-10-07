@@ -17,7 +17,7 @@ export function assertScopedTab(scope, tab) {
   return tab;
 }
 export function tabSummary(tab, secrets = []) {
-  return { id: tab.id, title: redactText(tab.title || '网页', secrets).slice(0, 160), url: publicUrl(tab.url) };
+  return { id: tab.id, title: redactText(tab.title || '网页', secrets).slice(0, 160), url: publicUrl(tab.url, secrets) };
 }
 export function publicScope(scope) {
   return scope.tabs.map(tab => ({ id: tab.id, title: tab.title, url: tab.url }));

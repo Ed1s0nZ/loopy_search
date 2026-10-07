@@ -2,7 +2,9 @@
 export function redactText(value, secrets = []) {
   let text = String(value ?? '');
   for (const secret of secrets) {
-    if (typeof secret === 'string' && secret.length >= 4) text = text.split(secret).join('[REDACTED]');
+    if (typeof secret === 'string' && secret.length >= 4) {
+      for (const value of new Set([secret, encodeURIComponent(secret)])) text = text.split(value).join('[REDACTED]');
+    }
   }
   return text
     .replace(/https?:\/\/[^\s<>"']+/g, value => {
@@ -15,19 +17,19 @@ export function redactText(value, secrets = []) {
     .replace(/((?:api[_ -]?key|password|passwd|secret|access[_ -]?token|authorization|密码|密钥)\s*[=:：]\s*)[^\s,;"<>]+/gi, '$1[REDACTED]');
 }
 
-export function publicUrl(value) {
+export function publicUrl(value, secrets = []) {
   try {
     const url = new URL(value);
     if (!['http:', 'https:'].includes(url.protocol)) return '[unsupported URL]';
     url.username = ''; url.password = ''; url.search = ''; url.hash = '';
-    return redactText(url.href);
+    return redactText(url.href, secrets);
   } catch { return '[invalid URL]'; }
 }
 
 export function sanitizeObservation(observation, secrets = []) {
   return {
     snapshotId: observation.snapshotId,
-    url: publicUrl(observation.url),
+    url: publicUrl(observation.url, secrets),
     title: redactText(observation.title, secrets).slice(0, 300),
     text: redactText(observation.text, secrets).slice(0, 12000),
     elements: (observation.elements ?? []).slice(0, 80).map(element => ({
@@ -35,7 +37,7 @@ export function sanitizeObservation(observation, secrets = []) {
       ...(typeof element.grantId === 'string' ? { grantId: element.grantId } : {}),
       capabilities: (element.capabilities ?? []).filter(tool => ['click', 'fill', 'select'].includes(tool)),
       label: redactText(element.label, secrets).slice(0, 180),
-      ...(element.href ? { href: publicUrl(element.href) } : {}),
+      ...(element.href ? { href: publicUrl(element.href, secrets) } : {}),
       ...(element.options ? { options: element.options.slice(0, 30).map(option => ({
         value: redactText(option.value, secrets).slice(0, 200),
         label: redactText(option.label, secrets).slice(0, 100)
