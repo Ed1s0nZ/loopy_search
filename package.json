@@ -8,6 +8,7 @@
     "check": "node scripts/check.mjs",
     "test:e2e": "node --test --test-concurrency=1 tests/*.e2e.js",
     "test:live": "node scripts/live-model-smoke.mjs",
+    "test:live-vision-action": "node scripts/live-vision-action-smoke.mjs",
     "test:live-vision": "node scripts/live-vision-smoke.mjs",
     "test:live-browser": "node scripts/live-browser-smoke.mjs",
     "prepare": "git config core.hooksPath .githooks"

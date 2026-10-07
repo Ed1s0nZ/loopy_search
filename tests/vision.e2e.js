@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 const syntheticKey = ['sk', 'fixture'.repeat(5)].join('-');
 const html = `<!doctype html><title>Vision fixture</title><style>body{background:white;margin:20px;font:16px sans-serif}input{background:#00ff00;width:240px;height:32px}canvas{display:block;border:1px solid black;margin-top:20px}#private{width:180px;height:30px;background:#ff00ff}</style>
-<h1>合成视觉测试页</h1><input id="privateInput" value="synthetic-private-value"><p id="credential">${syntheticKey}</p><div id="private">business private area</div><x-private style="display:block;width:200px;height:40px"></x-private><canvas id="board" width="300" height="120" aria-label="合成画布"></canvas><p id="result">clicked:0</p>
+<h1>合成视觉测试页</h1><input id="privateInput" value="synthetic-private-value"><p id="credential">${syntheticKey}</p><div id="private">business private area</div><x-private style="display:block;width:200px;height:40px"></x-private><div style="display:flex;gap:5px;height:50px"><textarea style="width:50px">private text</textarea><select style="width:50px"><option>private option</option></select><div contenteditable style="width:50px;background:lime">private</div><iframe style="width:50px;height:35px" srcdoc="<body style=background:lime>private"></iframe><img style="width:50px;height:35px" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></div><canvas id="board" width="300" height="120" aria-label="合成画布"></canvas><p id="result">clicked:0</p>
 <script>const hidden=document.querySelector("x-private").attachShadow({mode:"closed"});hidden.innerHTML="<input value=closed-shadow-private style=background:lime>";const canvas=document.getElementById('board');const ctx=canvas.getContext('2d');ctx.fillStyle='#0066ff';ctx.fillRect(0,0,300,120);ctx.fillStyle='white';ctx.font='20px sans-serif';ctx.fillText('Local Canvas',50,60);let clicks=0;canvas.addEventListener('click',event=>{document.getElementById('result').textContent='clicked:'+ ++clicks+' at '+event.clientX+','+event.clientY});</script>`;
 test('vision extension: masked pixels, consent, Canvas coordinates and stale image rejection', { timeout: 120000 }, async t => {
   let behavior = 'finish'; let calls = 0; let bodies = []; let point;
@@ -60,7 +60,7 @@ test('vision extension: masked pixels, consent, Canvas coordinates and stale ima
       const view = await prepare(); assert.equal(calls, 0); assert(view.preview.vision.dataUrl.startsWith('data:image/png;base64,'));
       assert.deepEqual(await pixel(view.preview.vision, await center('#privateInput')), [24, 34, 48, 255]);
       assert.deepEqual(await pixel(view.preview.vision, await center('#credential')), [24, 34, 48, 255]);
-      assert.deepEqual(await pixel(view.preview.vision, await center('x-private')), [24, 34, 48, 255]);
+      for (const selector of ['x-private', 'textarea', 'select', '[contenteditable]', 'iframe', 'img']) assert.deepEqual(await pixel(view.preview.vision, await center(selector)), [24, 34, 48, 255], selector);
       assert.equal(await worker.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0].url), priorUrl);
       assert.notDeepEqual(await pixel(view.preview.vision, await center('#board')), [24, 34, 48, 255]);
       await approve(view); const done = await wait('completed'); assert.equal(calls, 1); assert(!JSON.stringify(done).includes('data:image'));
@@ -89,10 +89,10 @@ test('vision extension: masked pixels, consent, Canvas coordinates and stale ima
       assert.equal(bodies.at(-1).messages.flatMap(message => Array.isArray(message.content) ? message.content.filter(part => part.type === 'image_url') : []).length, 1);
     });
     await t.test('scroll after preview prevents stale image transmission; masked coordinate cannot click', async () => {
-      behavior = 'finish'; const view = await prepare(); const before = calls;
-      await fixture.evaluate(() => document.body.style.height = '2000px'); await approve(view);
+      behavior = 'finish'; await fixture.evaluate(() => document.body.style.height = '2000px');
+      const view = await prepare(); const before = calls; await fixture.evaluate(() => scrollTo(0, 120)); await approve(view);
       for (let i = 0; i < 100 && (await call('assistant:get')).data.state.status !== 'failed'; i++) await new Promise(resolve => setTimeout(resolve, 20));
-      const failed = (await call('assistant:get')).data.state; assert.equal(failed.status, 'failed'); assert.equal(failed.error.code, 'STALE_SNAPSHOT'); assert.equal(calls, before);
+      const failed = (await call('assistant:get')).data.state; assert.equal(failed.status, 'failed'); assert.equal(failed.error.code, 'STALE_SNAPSHOT'); assert.equal(calls, before); await fixture.evaluate(() => scrollTo(0, 0));
       behavior = 'point'; point = await center('#privateInput'); await approve(await prepare('assist'));
       for (let i = 0; i < 100 && (await call('assistant:get')).data.state.status !== 'failed'; i++) await new Promise(resolve => setTimeout(resolve, 20));
       assert.equal((await call('assistant:get')).data.state.error.code, 'BLOCKED');

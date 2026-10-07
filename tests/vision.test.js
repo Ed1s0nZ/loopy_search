@@ -47,3 +47,14 @@ test('stopping a visual task clears screenshot payloads and refuses late model m
   finish({ content: JSON.stringify({ tool: 'finish', args: { summary: 'late' } }) }); await new Promise(resolve => setTimeout(resolve, 10));
   assert.equal(runner.view().status, 'stopped'); assert.equal(runner.view().result, undefined);
 });
+test('overflow hides the entire viewport and expiry refuses reuse before new capture', async () => {
+  let now = 10000; let received; let overflow = true;
+  const viewport = { width: 100, height: 80, dpr: 1 };
+  const api = { tabs: { query: async () => [{ id: 1 }], update: async () => {}, captureVisibleTab: async () => 'raw-image' }, windows: { update: async () => {} }, scripting: { executeScript: async () => [{ result: { ok: true, documentToken: 'doc', pageUrl: 'https://example.test/', revision: 0, layoutKey: 'layout', viewport, masks: [], textRects: [{ text: 'local-private', x: 10, y: 10, width: 20, height: 10 }], overflow } }] } };
+  const vision = createVisionBrowser(api, { source: async () => {}, ready: async () => {}, check: async () => ({ windowId: 1 }) }, { now: () => now, image: async (_raw, _viewport, masks) => { received = masks; return { dataUrl: 'masked-image', width: 100, height: 80 }; } });
+  const scope = { windowId: 1 }; const view = await vision.capture(1, scope, null, 'doc', ['local-private']);
+  assert.deepEqual(received, [{ x: 0, y: 0, width: 100, height: 80 }]);
+  now += 60000; await assert.rejects(vision.verify(1, view.id, scope, null, 'doc'), { code: 'STALE_SNAPSHOT' });
+  overflow = false; await vision.capture(1, scope, null, 'doc', ['local-private']);
+  assert.deepEqual(received, [{ x: 10, y: 10, width: 20, height: 10 }]);
+});

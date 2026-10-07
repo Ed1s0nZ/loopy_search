@@ -19,3 +19,9 @@ Feature Lifecycle Report：功能 BA-VISION；当前 F0；默认现有任务不�
 - 真实 DeepSeek 只读视觉 smoke 一次成功：输入 833、输出 101 tokens，单个 finish，从 DOM 文本不包含的合成 Canvas 识别出编号 42；目标页面写入零。私有配置在仓库外；不记录响应/图像/密钥，不把 synthetic 结果冒充真实模型。
 - 早期验证发现 Playwright 模拟视口与 Chrome 实际截图尺寸不匹配，保持生产严格校验，改使用真实窗口尺寸；跨 scripting 的对象属性顺序使 JSON stringify 视口比较误报，改逐字段比较；恢复活动页测试改以实际原活动页为依据，非固定假设 assistant。全部修正复测。
 - 本切片没有新权限、第三方依赖、主分支合并或商店发布；原始图像与测试截图均未提交。
+
+## F5 验证与使用文档
+
+- verification.md 映射 BV-001..009，记录真实像素、实际 DeepSeek 识别/坐标操作、真实请求 3 次及总用量，包含失败修正与特殊页面限制。
+- 新增可选 test:live-vision-action 示例，仅预先验证本地合成圆形坐标后允许一次 Canvas 点击，不访问实际账号页。README 描述 opt-in、遮挡、键盘/放大、60 秒与合成事件限制。
+- 完整路线仅新增 BA-VISION 完成标记；BA-FRAME、TOOLS、REPLAY 与其他类别仍未完成。
