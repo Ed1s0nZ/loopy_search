@@ -73,3 +73,9 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 修复显式 root-only prepare 重用 scope 时未清旧子范围：删除 frameScopes[tabId]，撤销权限后 root-only 也无需枚举权限。单元证明清理、无枚举和子 frame 拒绝。刷新标签列表若旧目标关闭、自动改选新目标，frameUI.reset 清旧目录；真实扩展验证关闭目标后点击刷新，目录空、默认顶层提示和新 target。
 
 39 单元及 20 框架专项通过；最终完整扩展回归另运行记录。不以 UI 检视替代混合新开/关闭最终验收；F5/F6 仍未标全部完成。本轮无 paid 模型调用。
+
+## F5 本地验收完成
+
+子 frame 发起 open/close 在 auto 模式仍两次单次确认；新页顶层、关闭返回原页顶层，原 URL 不变。对子 frame/catalog 跨窗口/incognito 状态的公共 gate 单元证明先拒绝后注入（0 次注入）。检视复现 disabled fieldset 子控件 .disabled=false 被误列的问题，改为检查原生 :disabled，DOM 与视觉执行同样拒绝；失败测试修复后完整 39 单元/50 扩展通过，秘密扫描通过。
+
+verification.md 按 BF-001..010 整理最终证据，保留浏览器版本、sandbox、可信输入、无痕本地配置共享等明确边界。需求原用户授权可实施，不声称文档逐项确认。后续 F6 自检、changelog、草稿 PR、对应 head CI；完整项目全量目标仍在推进。

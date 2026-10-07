@@ -1,22 +1,24 @@
-# iframe / Shadow DOM 验收证据（进行中）
+# iframe / Shadow DOM 验收证据
 
-状态：F5 未完成。依据实际测试覆盖，不以代码存在代替用户场景证明。
+状态：F5 本地验收完成；F6 草稿 PR 与对应 head CI 分别记录，不代表已合并或发布。需求为 Implementation authorized，来源为用户自主实施授权。
 
-| 需求 | 当前证据 | 尚需核对 |
-| --- | --- | --- |
-| BF-001 | 真实 Chrome open/closed/nested/实际 slot、隐藏 host、输入值过滤 | 敏感区域祖先/影子编辑器组合已实际验证，区域文字和字段排除 |
-| BF-002 | 真实影子 click/fill/select；mutation、host hidden、节点替换拒绝；自动预算与同节点连续操作 | 新挂载影子根的根集合变化已证明旧引用拒绝 |
-| BF-003 | 跨源、同源、srcdoc、about:blank；未选读取拒绝；元数据只枚举 | 嵌套跨源/隐藏祖先证明；当前 Chrome 对 opaque sandbox srcdoc 允许隔离世界观察且只返回其自身 DOM，不声称所有 sandbox 可注入 |
-| BF-004 | 默认 manifest optional；真实 Chrome 无权限时 FRAME_PERMISSION，顶层照常；单元拒绝/撤销；UI 同步手势调用和错误显示 | 有界面 Chromium 原生允许、拒绝后再申请、实际撤销清空列表与提示全部验证 |
-| BF-005 | 实际助手切换后暂停预览，批准后模型才能看到子内容，填写待单次确认 | 实际 list_frames、子页 scrollY=200 且父页 scrollY 不变、确认后 root navigate 全部验证 |
-| BF-006 | 子文档同 URL 重载拒绝；父导航撤销选择；指定 documentIds | 真实 iframe 替换拒绝旧操作/新 frame 不继承选择；跨环境公共 gate 的既有单元证据需最终审阅 |
-| BF-007 | 代码在多标签切换/新开/导航恢复 frame 0；既有标签回归通过 | 实际混合标签/子 frame 切换后恢复 0，拒绝旧标签 frameId；新开/关闭路径仍沿用已验证顶层回归 |
-| BF-008 | 像素验证 closed/iframe 遮挡；溢出影子宿主的输入和密钥实际遮挡；子页路径清除图像历史 | 真实模型请求证明：子页不含任何 image_url/data:image，回顶层新图与再批准；已验证 |
-| BF-009 | 真实 30k 节点和 64 root 超限 DOCUMENT_LIMIT，移除后恢复；80 元素/12k 文字输出上限 | 真实助手界面显示 DOCUMENT_LIMIT；已验证 |
-| BF-010 | 隔离临时扩展/Profile/本地 fixture，合成模型；秘密扫描通过 | 完成上述缺口后再判定全量完成 |
+| 需求 | 权威证据及结论 |
+| --- | --- |
+| BF-001 | frames.e2e 实际开放/闭合/嵌套根、真实 slot 分发、隐藏 composed 父链、敏感祖先与编辑区过滤，原字段值不采集 |
+| BF-002 | 真实影子 click/fill/select；mutation、host hidden、节点替换、新挂载 root 拒绝旧引用；同节点自动连续填写、预算耗尽转确认；原生 disabled fieldset 子控件排除 |
+| BF-003 | 同源/跨源/嵌套 iframe、srcdoc、about:blank 的独立观察；未选 frame 拒绝，元数据明确选择最多 16 个；只枚举当前页 |
+| BF-004 | 未修改 manifest/Profile 实际 contains=false、FRAME_PERMISSION、顶层可用；有界面原生允许/拒绝后再申请/撤销重置 UI 两次 smoke exit 0 |
+| BF-005 | 模型实际 list_frames/switch_frame；子文档预览前不发送内容；填写单次确认；子 frame scrollY=200 且父 scrollY 不变；确认后 navigate 替换整个标签并重预览 |
+| BF-006 | 子文档同 URL 重载、iframe 替换、父导航拒绝旧引用；替换后的新 frame 不继承授权；注入锁定 documentIds。browser-scope 单元对非 0 frame 与 metadata catalog 跨窗口/incognito 状态注入前拒绝 |
+| BF-007 | 实际切换标签恢复 0，旧标签 frameId 拒绝；从子页新开/关闭均单次确认，新页默认 0，关闭返回原标签 0；原标签 URL 保持 |
+| BF-008 | 真实 PNG 像素证明 iframe/closed root、溢出宿主的输入/密钥遮挡；子 frame 请求没有 image_url/data:image，回顶层新 imageId 再批准；坐标动作仅顶层 |
+| BF-009 | 30k 节点/64 根超限 DOCUMENT_LIMIT，移除后恢复；输出最多 80 元素/12k 文字；真实 UI 显示错误；生产模块均低于 200 行 |
+| BF-010 | 临时 Profile、本地合成 HTTP/模型、无 paid 调用；39 单元/50 扩展测试全通过，syntax/manifest/secret 检查通过；420px light/dark 截图已目视检查 |
 
-专项 tests/frames.e2e.js：预授权临时 manifest 测试实际路由；独立未修改扩展测试默认无权限。**预授权不证明弹窗**。曾在无界面 Chromium 点击生产 loadFrames 申请原生可选权限，30 秒未返回，实验超时后关闭 Profile；没有记成通过，也未用模拟权限替代。此 UI 实验需有界面隔离浏览器补证。
+执行：`npm run check`、`npm test`、`npm run test:e2e`，全部 exit 0。框架专项包含 22 项（父测试计数）；全扩展 50 项不是 50 个不同页面。临时预授权 manifest 只证明实际 frame 路由，不替代原生权限 UI。独立未修改扩展证明默认权限缺失。
 
-远端 CI：a4b02b7bb2505791897a1cc70598b15f2d8c5787 的 GitHub run 37595363635 SUCCESS；后续新增预算/默认权限测试须等待对应新 head CI，不能复用此结果宣称新 head 成功。
+原生权限：`node scripts/verify-frame-permission.mjs` 与 `--deny-first` 均 exit 0。CUA 实际读取“AI划词搜索请求获得更多权限/读取您的浏览记录”，只在临时本地 Profile 允许；第二轮先拒绝，UI notice/contains=false 验证后再申请允许。真实 remove=true、onRemoved 清空列表与撤销提示；脚本关闭 Chromium 并删除 Profile。零模型请求，不访问用户真实历史或凭据。此前 headless 30 秒实验未返回，没有算通过；上述有界面证据补齐该缺口。
 
-有界面原生权限验证：`node scripts/verify-frame-permission.mjs` 和 `node scripts/verify-frame-permission.mjs --deny-first` 均 exit 0。CUA 实际读到“AI划词搜索请求获得更多权限/读取您的浏览记录”，在临时 Profile 操作允许，以及第二轮拒绝后再允许。脚本通过真实 contains/request/remove、UI 列表与 onRemoved 提示核验，随后关闭 Chromium 并删除 Profile。没有本机真实浏览历史、凭据或模型请求。此补证取代此前 headless 未完成交互；不改 CI 预授权测试的范围说明。
+边界：当前验证浏览器为本机/CI Playwright Chromium，未以此声称所有 Chrome 版本或其他浏览器兼容。当前 Chrome 允许测试 sandbox="" srcdoc 的隔离世界观察，仅返回自身 DOM；其他不可注入页面显式拒绝，不承诺所有 sandbox 访问。iframe 须可见，操作会短暂激活目标页并恢复原活动页；可信原生输入仍由用户手动执行。密码/编辑区/未知业务机密不能因脱敏而一概声称安全，仍须核对预览。跨普通/无痕任务拒绝；浏览器本地配置共享属于后续 TRUST-13 工作，不在本切片解决。
+
+截图 artifacts/frames-{light,dark}-420.png 为忽略的本地验收输出，没有提交 Git。源码扫描读取本机已配置值用于比对时不输出原值。此次没有使用本机实际 API Key 或真实用户站点。
