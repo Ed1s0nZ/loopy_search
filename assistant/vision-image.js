@@ -11,13 +11,16 @@ export function blockedPoint(x, y, masks) {
 }
 export async function maskImage(dataUrl, viewport, masks, scaled = false) {
   if (!/^data:image\/png;base64,/.test(dataUrl) || dataUrl.length > 22000000) throw fail('CAPTURE', '截图格式或大小不受支持');
-  const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+  let bitmap;
+  try { bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob()); }
+  catch { throw fail('CAPTURE', '截图无法解码，请重新开始视觉任务'); }
   try {
     const expectedScale = scaled ? Math.min(1, 1600 / Math.max(viewport.width * viewport.dpr, viewport.height * viewport.dpr)) : 1;
     if (bitmap.width * bitmap.height > 16000000 || viewport.width < 1 || viewport.height < 1 || !Number.isFinite(viewport.dpr) || Math.abs(bitmap.width - viewport.width * viewport.dpr * expectedScale) > 3 || Math.abs(bitmap.height - viewport.height * viewport.dpr * expectedScale) > 3 || Math.abs(bitmap.width / bitmap.height - viewport.width / viewport.height) > 0.03) throw fail('CAPTURE', '截图与当前视口尺寸不匹配');
     const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale)); const height = Math.max(1, Math.round(bitmap.height * scale));
     const canvas = new OffscreenCanvas(width, height); const context = canvas.getContext('2d', { alpha: false });
+    if (!context) throw fail('CAPTURE', '浏览器不支持本地截图处理');
     context.drawImage(bitmap, 0, 0, width, height); context.fillStyle = '#182230';
     for (const mask of masks) {
       const sx = width / viewport.width; const sy = height / viewport.height;

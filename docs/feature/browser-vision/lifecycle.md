@@ -25,3 +25,7 @@ Feature Lifecycle Report：功能 BA-VISION；当前 F0；默认现有任务不�
 - verification.md 映射 BV-001..009，记录真实像素、实际 DeepSeek 识别/坐标操作、真实请求 3 次及总用量，包含失败修正与特殊页面限制。
 - 新增可选 test:live-vision-action 示例，仅预先验证本地合成圆形坐标后允许一次 Canvas 点击，不访问实际账号页。README 描述 opt-in、遮挡、键盘/放大、60 秒与合成事件限制。
 - 完整路线仅新增 BA-VISION 完成标记；BA-FRAME、TOOLS、REPLAY 与其他类别仍未完成。
+
+### 审查修正：截图解码
+
+损坏 PNG 解码现在返回 CAPTURE 明确状态，而不是通用 INTERNAL；真实扩展测试证明损坏与尺寸不匹配均被拒绝。npm run check 与视觉 E2E 8/8 复测通过；不重复付费模型调用，图像/动作合同未改变。

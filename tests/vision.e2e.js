@@ -121,10 +121,11 @@ test('vision extension: masked pixels, consent, Canvas coordinates and stale ima
         const bitmap = await createImageBitmap(await (await fetch(extra.dataUrl)).blob());
         const output = new OffscreenCanvas(bitmap.width, bitmap.height); const ctx = output.getContext('2d'); ctx.drawImage(bitmap, 0, 0);
         const first = [...ctx.getImageData(120, 120, 1, 1).data]; const second = [...ctx.getImageData(440, 120, 1, 1).data]; bitmap.close();
+        let corrupt; try { await maskImage('data:image/png;base64,AAAA', viewport, []); } catch (error) { corrupt = error.code; }
         let invalid; try { await maskImage(raw, { ...viewport, width: 1000 }, []); } catch (error) { invalid = error.code; }
-        return { width: extra.width, first, second, invalid };
+        return { width: extra.width, first, second, invalid, corrupt };
       });
-      assert.equal(result.width, 1600); assert.deepEqual(result.first, [24, 34, 48, 255]); assert.deepEqual(result.second, [24, 34, 48, 255]); assert.equal(result.invalid, 'CAPTURE');
+      assert.equal(result.width, 1600); assert.deepEqual(result.first, [24, 34, 48, 255]); assert.deepEqual(result.second, [24, 34, 48, 255]); assert.equal(result.invalid, 'CAPTURE'); assert.equal(result.corrupt, 'CAPTURE');
     });
     await t.test('actual visual UI captures, masks and approves locally', async () => {
       behavior = 'finish'; await assistant.setViewportSize({ width: 420, height: 900 });
