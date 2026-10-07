@@ -192,6 +192,28 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       assert.equal(inherited.url, '[嵌入文档]'); assert(inherited.text.includes('blank-inherited-only'));
       assert(!inherited.text.includes('same-origin-only'));
     });
+    await t.test('node and shadow-root budgets fail explicitly; bounded output recovers after removal', async () => {
+      await page.evaluate(() => {
+        const box = document.createElement('section'); box.id = 'budget'; const fragment = document.createDocumentFragment();
+        for (let i = 0; i < 15100; i++) { const item = document.createElement('div'); item.textContent = 'node'; fragment.append(item); }
+        box.append(fragment); document.body.append(box);
+      });
+      assert.equal((await run('observe')).error, 'DOCUMENT_LIMIT'); await page.locator('#budget').evaluate(element => element.remove());
+      await page.evaluate(() => {
+        const box = document.createElement('section'); box.id = 'budget';
+        for (let i = 0; i < 65; i++) { const host = document.createElement('div'); host.attachShadow({ mode: 'closed' }).textContent = 'root'; box.append(host); }
+        document.body.append(box);
+      });
+      assert.equal((await run('observe')).error, 'DOCUMENT_LIMIT'); await page.locator('#budget').evaluate(element => element.remove());
+      await page.evaluate(() => {
+        const box = document.createElement('section'); box.id = 'budget';
+        for (let i = 0; i < 100; i++) { const button = document.createElement('button'); button.textContent = `budget button ${i}`; box.append(button); }
+        const paragraph = document.createElement('p'); paragraph.textContent = 'visible bounded text '.repeat(1000); box.append(paragraph); document.body.append(box);
+      });
+      const observation = await run('observe'); assert(!observation.error, observation.message);
+      assert.equal(observation.elements.length, 80); assert(observation.text.length <= 12000);
+      await page.locator('#budget').evaluate(element => element.remove()); assert(!(await run('observe')).error);
+    });
     await t.test('child reload rejects old document; parent reload revokes selected children', async () => {
       const observation = await run('observe', { frameId: cross.frameId });
       await page.frames().find(frame => frame.url() === childUrl).goto(childUrl);
@@ -205,4 +227,28 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
     await context?.close(); await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => child.close(resolve))]);
     await rm(temp, { recursive: true, force: true });
   }
+});
+
+test('unmodified extension: optional frame permission is absent and top-level tools still work', { timeout: 30000 }, async () => {
+  const profile = await mkdtemp(join(tmpdir(), 'loopy-frame-denial-')); let context;
+  const server = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end('<title>permission fixture</title><p>top-level available</p>'); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
+      args: [`--disable-extensions-except=${resolve('.')}`, `--load-extension=${resolve('.')}`] });
+    const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+    const page = await context.newPage(); await page.goto(`http://127.0.0.1:${server.address().port}/`);
+    const harness = await context.newPage(); await harness.goto(`chrome-extension://${new URL(worker.url()).host}/assistant.html`);
+    const result = await harness.evaluate(async () => {
+      const { createBrowserTools } = await import('./assistant/browser.js'); const browser = createBrowserTools(chrome);
+      const [tab] = (await chrome.tabs.query({})).filter(tab => tab.title === 'permission fixture');
+      const scope = await browser.prepareScope(tab.id, [tab.id], [], false);
+      let denied; try { await browser.frames.catalog(tab.id, scope); } catch (error) { denied = error.code; }
+      return { permitted: await chrome.permissions.contains({ permissions: ['webNavigation'] }), denied,
+        manifest: chrome.runtime.getManifest(), observation: await browser.observe(tab.id, [], undefined, scope) };
+    });
+    assert.equal(result.permitted, false); assert.equal(result.denied, 'FRAME_PERMISSION');
+    assert(result.manifest.optional_permissions.includes('webNavigation')); assert(!result.manifest.permissions.includes('webNavigation'));
+    assert(result.observation.text.includes('top-level available'));
+  } finally { await context?.close(); await new Promise(resolve => server.close(resolve)); await rm(profile, { recursive: true, force: true }); }
 });

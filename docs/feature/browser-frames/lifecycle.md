@@ -31,3 +31,9 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 发现视觉探测仅扫描顶层文字会漏掉闭合影子文字越过宿主边界的区域。改用已预算限制的深层 textNodes，计算文字 Range 与父矩形并集，长文本也遮挡实际溢出范围。真实 PNG 像素测试证明闭合根内溢出宿主的输入和合成凭证均为遮挡色；无模型发送必要。全套 38 单元、37 扩展测试通过；最后范围计算整理另复跑 vision 专项，检查记录以实际命令结果为准。
 
 原生权限提示、预算及完整 UI 检视仍待验证，F5/F6 不标完成。密钥扫描通过；未调用付费 API。
+
+### F4 预算与默认权限验收
+
+真实结构预算（30k 节点/64 影子根）超限明确拒绝并可恢复，输出上限 80 元素/12k 字符。未修改生产 manifest 的独立临时 Profile 中 webNavigation 默认 false，框架枚举 FRAME_PERMISSION，顶层观察成功。完整 39 项扩展测试通过，syntax/manifest/secret 检查通过。前一 head a4b02b7 的 CI run 37595363635 SUCCESS。
+
+新 verification.md 对 BF-001..010 逐条列明证据和缺口，F5 保持进行中。原生 optional 权限 UI 在 headless 实验未返回，30 秒超时并关闭隔离 Profile；没有计入成功或提交不稳定测试。后续用有界面隔离浏览器补证。无 paid 调用。
