@@ -29,7 +29,7 @@ npm run test:e2e
 
 `npm ci` 安装本地 pre-commit 敏感信息扫描 hook。CI 只使用合成模型和临时浏览器。真实服务测试必须显式运行 `npm run test:live`、`npm run test:live-browser`、`npm run test:live-vision`（一次只读小图）或 `npm run test:live-vision-action`（两次请求，仅合成画布点击），配置从仓库外 `~/.config/loopy-search/testing.json`（0600）或 `LOOPY_TEST_CONFIG` 指定的私有文件读取，不要把该文件复制进仓库。
 
-详见 [浏览器助手需求](docs/feature/browser-assistant/requirements.md)、[设计](docs/feature/browser-assistant/design.md)、[验证记录](docs/feature/browser-assistant/verification.md) 、[范围与自动授权验证](docs/feature/browser-scope-automation/verification.md) 、[视觉辅助验证](docs/feature/browser-vision/verification.md) 和 [完整升级路线](docs/roadmap.md)。
+详见 [浏览器助手需求](docs/feature/browser-assistant/requirements.md)、[设计](docs/feature/browser-assistant/design.md)、[验证记录](docs/feature/browser-assistant/verification.md)、[范围与自动授权验证](docs/feature/browser-scope-automation/verification.md)、[视觉辅助验证](docs/feature/browser-vision/verification.md) 和 [完整升级路线](docs/roadmap.md)。
 
 <div align="center">
   <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="300px">

@@ -29,3 +29,9 @@ Feature Lifecycle Report：功能 BA-VISION；当前 F0；默认现有任务不�
 ### 审查修正：截图解码
 
 损坏 PNG 解码现在返回 CAPTURE 明确状态，而不是通用 INTERNAL；真实扩展测试证明损坏与尺寸不匹配均被拒绝。npm run check 与视觉 E2E 8/8 复测通过；不重复付费模型调用，图像/动作合同未改变。
+
+## F6 审查与发布记录
+
+- review.md 核对截图隐私、范围、消息/内存生命周期、坐标确认和模块边界；CHANGELOG Unreleased 记录具体场景、权限和可信输入限制。
+- 依赖 #7 的 draft PR，当前无合并/发布；基线 #6/#7 合入后再复核目标分支。最新 head CI 在 PR 中核对，不能用旧 CI 代替。
+- 全量目标保持 active；下一项 BA-FRAME，随后 BA-TOOLS / BA-REPLAY 及信任、代理等完整路线。
