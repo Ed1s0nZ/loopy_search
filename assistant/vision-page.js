@@ -28,14 +28,17 @@ export function visionPage(command, args = {}) {
     if ((globalThis.__loopyDOMRuntime?.root(element) || element.shadowRoot || element.tagName.includes('-')) && visible(element)) masks.push(rect(element));
     if (masks.length > 1000) { overflow = true; break; }
   }
-  const walker = document.createTreeWalker(document.body ?? document.documentElement, NodeFilter.SHOW_TEXT);
+  const walker = tree ? (() => { let index = 0; return { nextNode: () => tree.textNodes[index++] }; })() : document.createTreeWalker(document.body ?? document.documentElement, NodeFilter.SHOW_TEXT);
   let node; let count = 0;
   while ((node = walker.nextNode())) {
     if (++count > 30000 || textRects.length > 1000) { overflow = true; break; }
     const parent = node.parentElement;
-    if (!parent || parent.closest('script,style,noscript,template,input,textarea,select,[contenteditable],svg') || !visible(parent) || !node.textContent.trim()) continue;
-    if (node.textContent.length > 16000) masks.push(rect(parent));
-    else textRects.push({ text: node.textContent, ...rect(parent) });
+    if (!parent || (tree ? !globalThis.__loopyDOMRuntime.textVisible(node) : parent.closest('script,style,noscript,template,input,textarea,select,[contenteditable],svg')) || !visible(parent) || !node.textContent.trim()) continue;
+    const range = document.createRange(); range.selectNodeContents(node); const bounds = range.getBoundingClientRect(); const container = rect(parent);
+    const x = Math.min(bounds.x, container.x), y = Math.min(bounds.y, container.y);
+    const area = { x, y, width: Math.max(bounds.right, container.x + container.width) - x, height: Math.max(bounds.bottom, container.y + container.height) - y };
+    if (node.textContent.length > 16000) masks.push(area);
+    else textRects.push({ text: node.textContent, ...area });
   }
   for (const element of document.querySelectorAll('button,a[href],input,textarea,select,[role="button"],[role="link"],canvas')) {
     if (visible(element)) layout.push(signature(element)); if (layout.length > 1000) { overflow = true; break; }

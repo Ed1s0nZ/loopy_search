@@ -69,6 +69,18 @@ test('vision extension: masked pixels, consent, Canvas coordinates and stale ima
       assert(!JSON.stringify(bodies.at(-1)).includes(syntheticKey)); assert(!JSON.stringify(bodies.at(-1)).includes('documentToken'));
       const dom = await prepare('read', false); assert.equal(dom.preview.vision, undefined); await call('assistant:stop');
     });
+    await t.test('closed shadow content overflowing its host remains masked in actual sanitized pixels', async () => {
+      const points = await fixture.evaluate(key => {
+        const host = document.createElement('div'); host.id = 'overflow-shadow'; host.style.cssText = 'position:absolute;left:450px;top:100px;width:2px;height:2px'; document.body.append(host);
+        const shadow = host.attachShadow({ mode: 'closed' });
+        shadow.innerHTML = '<input style="position:absolute;left:30px;top:0;width:150px;background:lime"><p style="position:absolute;left:30px;top:50px;white-space:nowrap"></p>';
+        shadow.querySelector('p').textContent = key;
+        return [...shadow.children].map(element => { const r = element.getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; });
+      }, syntheticKey);
+      const view = await prepare();
+      for (const point of points) assert.deepEqual(await pixel(view.preview.vision, point), [24, 34, 48, 255]);
+      await call('assistant:stop'); await fixture.locator('#overflow-shadow').evaluate(element => element.remove());
+    });
     await t.test('manual masks are reversible without exposing automatic masked pixels and invalidate old approval', async () => {
       const view = await prepare(); const box = await fixture.locator('#private').boundingBox();
       const result = await call('assistant:visionMasks', { id: view.id, previewId: view.preview.id, masks: [box] }); assert(result.success, result.error);

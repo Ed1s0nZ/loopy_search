@@ -9,6 +9,7 @@ import { join, resolve, relative } from 'node:path';
 test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeout: 90000 }, async t => {
   const temp = await mkdtemp(join(tmpdir(), 'loopy-frame-test-'));
   const extension = join(temp, 'extension'); let context; let desiredFrame; let modelCalls = 0; const bodies = [];
+  let behavior = 'frame'; let pendingModel;
   const child = createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end('<title>child</title><p>cross-origin-only</p><input aria-label="child query"><button>child button</button>'); });
   await new Promise(resolve => child.listen(0, '127.0.0.1', resolve));
   const childUrl = `http://127.0.0.1:${child.address().port}/child`;
@@ -19,10 +20,16 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       const observations = input.messages.filter(message => message.role === 'user').map(message => { try { return JSON.parse(message.content).observation; } catch { return null; } }).filter(Boolean);
       const observation = observations.at(-1);
       const executed = input.messages.some(message => message.role === 'assistant' && message.content.includes('"tool":"fill"'));
-      const action = observation.frameId === 0 ? { tool: 'switch_frame', args: { frameId: desiredFrame } }
+      let action = observation.frameId === 0 ? { tool: 'switch_frame', args: { frameId: desiredFrame } }
         : !executed ? { tool: 'fill', args: { snapshotId: observation.snapshotId, elementId: observation.elements.find(item => item.label === 'child query').id, value: 'confirmed-child' } }
           : { tool: 'finish', args: { summary: 'local test complete' } };
-      res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] })); return;
+      if (behavior.startsWith('shadow')) {
+        const count = input.messages.filter(message => message.role === 'assistant' && message.content.includes('"tool":"fill"')).length;
+        action = count < 2 ? { tool: 'fill', args: { snapshotId: observation.snapshotId, elementId: observation.elements.find(item => item.label === 'shadow query').id, value: `shadow-auto-${count}` } } : { tool: 'finish', args: { summary: 'shadow complete' } };
+      }
+      const respond = () => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] })); };
+      if (behavior === 'shadow-slow') { pendingModel = respond; return; }
+      respond(); return;
     }
     res.setHeader('content-type', 'text/html');
     if (req.url === '/same') { res.end('<p>same-origin-only</p><input aria-label="same query">'); return; }
@@ -140,6 +147,39 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       reply = await call('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true }); assert(reply.success, reply.error);
       await waitState('completed'); assert.equal(modelCalls, 3);
       assert.equal(await page.frames().find(frame => frame.url() === childUrl).locator('input').inputValue(), 'confirmed-child');
+    });
+    const call = (action, payload = {}) => harness.evaluate(({ action, payload }) => chrome.runtime.sendMessage({ action, ...payload }), { action, payload });
+    const waitTask = async status => {
+      for (let i = 0; i < 120; i++) {
+        const state = (await call('assistant:get')).data.state;
+        if (state.status === status) return state;
+        if (state.status === 'failed') throw new Error(JSON.stringify(state.error));
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+      throw new Error(`Missing task state ${status}`);
+    };
+    const prepareAuto = async limit => {
+      const tabId = await harness.evaluate(() => globalThis.frameTestTab);
+      const response = await call('assistant:prepare', { tabId, mode: 'auto', task: 'local shadow test' }); assert(response.success, response.error);
+      const state = response.data; const element = state.preview.elements.find(item => item.label === 'shadow query'); assert(element);
+      const approval = await call('assistant:preview', { id: state.id, previewId: state.preview.id, automation: { grants: [{ elementId: element.id, tool: 'fill' }], limit, acknowledged: true } }); assert(approval.success, approval.error);
+      return state;
+    };
+    await t.test('closed-root automatic grants follow live nodes and enforce action budget', async () => {
+      behavior = 'shadow'; await prepareAuto(2); let state = await waitTask('completed');
+      assert.equal(state.events.filter(event => event.type === 'automatic').length, 2);
+      assert.equal(await page.evaluate(() => fixtureRoot.querySelector('input').value), 'shadow-auto-1');
+      await prepareAuto(1); state = await waitTask('confirmation');
+      assert.equal(state.automation.remaining, 0); assert.equal(await page.evaluate(() => fixtureRoot.querySelector('input').value), 'shadow-auto-0');
+      await call('assistant:stop');
+    });
+    await t.test('replacing a closed-root node while the model waits cannot reuse automatic consent', async () => {
+      behavior = 'shadow-slow'; pendingModel = null; await prepareAuto(2);
+      for (let i = 0; !pendingModel && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 20)); assert(pendingModel);
+      await page.evaluate(() => { const input = fixtureRoot.querySelector('input'); const replacement = input.cloneNode(); replacement.value = ''; input.replaceWith(replacement); });
+      pendingModel(); const state = await waitTask('failed'); assert.equal(state.error.code, 'STALE_SNAPSHOT');
+      assert.equal(await page.evaluate(() => fixtureRoot.querySelector('input').value), '');
+      behavior = 'frame';
     });
     await t.test('same-origin and inherited about:blank remain separate explicitly selected documents', async () => {
       const current = await run('catalog'); const same = current.find(item => item.url.endsWith('/same'));
