@@ -59,3 +59,9 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 实际只读模型调用 list_frames 后切换子 frame，随后 switch_tab：新标签预览 frameId=0、frames 只有 0；模型用旧标签 child ID 得 FRAME_SCOPE。辅助模式子 frame 调用 scroll 后 navigate：确认前顶层 URL 不变，批准后整个标签换成 /same、仅剩顶层文档，frame=0 且新文档先 preview。这里只证明 scroll 路由成功，滚动量仍需长页面 scrollY 验证。预算超限真实助手 UI 显示 DOCUMENT_LIMIT。新开/关闭沿用既有顶层回归，需最终检查混合路径。
 
 复查发现 configured opaque key 未传到 observation/link/tab URL 脱敏；现在 publicUrl 接受 secrets 并在这些投影传入，redactText 也排除 encodeURIComponent 形式。单元验证不依赖 sk 格式，且仅用合成 opaque token，不采集本机真实密钥。上一 head 257a5a8 的 CI run 37596497817 SUCCESS，不冒充本次新 head CI。
+
+### F4 原生权限与实际滚动闭环
+
+本地有界面 Chromium 两次临时 Profile：CUA 读取并点击真实扩展权限弹窗，第一轮允许；第二轮拒绝，真实 request=false/contains=false、UI 提示/空列表，再申请并允许。脚本实际检查 grant、元数据列表、remove=true、onRemoved 清空列表/撤销提示，均 exit 0；随后关闭测试浏览器并删除 Profile。第一次 click 后 CUA AX 返回 App quit，来源是脚本完成清理，不是权限失败，实际脚本 PASS 为结论。可重复脚本 scripts/verify-frame-permission.mjs 不读取任何密钥，不请求模型，不进入自动 CI。
+
+真实子 frame 长页面 scrollY=200，父 scrollY 保持不变；iframe DOM 替换后旧 document/key 得 FRAME_SCOPE，新 frameId 未继承选择且字段空值。全套 39 单元/47 扩展测试、syntax/secret 检查通过。本轮无 paid 调用，无真实用户页面改动。F5 尚有 UI 全面检视与混合新开/关闭的最终证据整理，原生弹窗不再是验证缺口。

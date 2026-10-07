@@ -13,7 +13,7 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
   const child = createServer((req, res) => {
     res.setHeader('content-type', 'text/html');
     res.end(req.url.startsWith('/nested-parent') ? '<p>nested parent</p><iframe src="/child?nested" height="100"></iframe>'
-      : `<title>child</title><p>${req.url.includes('?nested') ? 'nested-only' : 'cross-origin-only'}</p><input aria-label="child query"><button>child button</button>`);
+      : `<title>child</title><p>${req.url.includes('?nested') ? 'nested-only' : 'cross-origin-only'}</p><input aria-label="child query"><button>child button</button><div style="height:1200px"></div>`);
   });
   await new Promise(resolve => child.listen(0, '127.0.0.1', resolve));
   const childUrl = `http://127.0.0.1:${child.address().port}/child`;
@@ -297,6 +297,23 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       assert.equal(observation.elements.length, 80); assert(observation.text.length <= 12000);
       await page.locator('#budget').evaluate(element => element.remove()); assert(!(await run('observe')).error);
     });
+    await t.test('replacing an iframe refuses the old document and does not authorize its replacement', async () => {
+      const current = await run('catalog'); const target = current.find(item => item.url === childUrl);
+      const selected = current.filter(item => [0, target.frameId].includes(item.frameId)); await run('prepare', { ids: selected.map(item => item.frameId), documents: selected });
+      const observation = await run('observe', { frameId: target.frameId }); assert(!observation.error, observation.message);
+      await page.evaluate(url => new Promise(resolve => {
+        const old = [...document.querySelectorAll('iframe')].find(frame => frame.src === url); const replacement = old.cloneNode();
+        replacement.addEventListener('load', resolve, { once: true }); old.replaceWith(replacement);
+      }), childUrl);
+      const input = observation.elements.find(item => item.label === 'child query');
+      assert.equal((await run('execute', { key: observation.documentKey, action: { tool: 'fill', args: { snapshotId: observation.snapshotId, elementId: input.id, value: 'forbidden' } } })).error, 'FRAME_SCOPE');
+      const replacement = (await run('catalog')).find(item => item.url === childUrl); assert.notEqual(replacement.frameId, target.frameId);
+      assert.equal((await run('observe', { frameId: replacement.frameId })).error, 'FRAME_SCOPE');
+      assert.equal(await page.frames().find(frame => frame.url() === childUrl).locator('input').inputValue(), '');
+      cross = replacement;
+      const next = await run('catalog'); const renewed = next.filter(item => [0, replacement.frameId].includes(item.frameId));
+      await run('prepare', { ids: renewed.map(item => item.frameId), documents: renewed });
+    });
     await t.test('child reload rejects old document; parent reload revokes selected children', async () => {
       const observation = await run('observe', { frameId: cross.frameId });
       await page.frames().find(frame => frame.url() === childUrl).goto(childUrl);
@@ -331,8 +348,11 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       const reply = await call('assistant:prepare', { tabId, mode: 'assist', task: 'local root navigation', frameIds: selected.map(item => item.frameId), frameDocuments: selected }); assert(reply.success, reply.error);
       await call('assistant:preview', { id: reply.data.id, previewId: reply.data.preview.id });
       let state = await waitTask('preview'); assert.equal(state.frameId, desiredFrame);
+      const parentScroll = await page.evaluate(() => scrollY);
       await call('assistant:preview', { id: state.id, previewId: state.preview.id });
       state = await waitTask('confirmation'); assert.equal(state.pending.action.tool, 'navigate'); assert.notEqual(page.url(), navigationUrl);
+      assert.equal(await page.frames().find(frame => frame.url() === childUrl).evaluate(() => scrollY), 200);
+      assert.equal(await page.evaluate(() => scrollY), parentScroll);
       await call('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true });
       state = await waitTask('preview'); assert.equal(state.frameId, 0); assert.equal(page.url(), navigationUrl); assert.equal(page.frames().length, 1);
       assert.deepEqual(state.preview.frames.map(frame => frame.frameId), [0]);
