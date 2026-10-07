@@ -37,3 +37,9 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 真实结构预算（30k 节点/64 影子根）超限明确拒绝并可恢复，输出上限 80 元素/12k 字符。未修改生产 manifest 的独立临时 Profile 中 webNavigation 默认 false，框架枚举 FRAME_PERMISSION，顶层观察成功。完整 39 项扩展测试通过，syntax/manifest/secret 检查通过。前一 head a4b02b7 的 CI run 37595363635 SUCCESS。
 
 新 verification.md 对 BF-001..010 逐条列明证据和缺口，F5 保持进行中。原生 optional 权限 UI 在 headless 实验未返回，30 秒超时并关闭隔离 Profile；没有计入成功或提交不稳定测试。后续用有界面隔离浏览器补证。无 paid 调用。
+
+### F4 composed slot 与嵌套框架
+
+发现闭合 slot 的 assignedSlot 返回不可见引用时，原 composed parent 可能沿 light DOM 父链，遗漏实际 slot 父区域 opacity/hidden。runtime 现在在预算内遍历 SLOT.assignedNodes 建立 WeakMap 分发关系，每次刷新替换，避免残留节点。真实闭合 slot 内 opacity=0 父链排除文字/按钮；恢复后文字可见。新 attachShadow 根不产生普通子节点 mutation 时，根集合变化仍使旧 snapshot 拒绝。
+
+嵌套跨源 iframe 的 frameId/parentFrameId 和独立授权实际验证；未选拒绝，选后只观察子文档，祖先 iframe display:none 导致 FRAME_HIDDEN。专项 13 项（含父测试）通过；没有访问真实网站或 paid API。F5 验收表更新相关证据，仍未勾选全量完成。

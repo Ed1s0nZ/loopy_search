@@ -1,7 +1,8 @@
 // Classic bootstrap installed in the extension's isolated world for each document.
 (() => {
   if (globalThis.__loopyDOMRuntime) return;
-  const parent = element => element.assignedSlot || element.parentElement || element.getRootNode()?.host || null;
+  let distributed = new WeakMap();
+  const parent = element => element.assignedSlot || distributed.get(element) || element.parentElement || element.getRootNode()?.host || null;
   const root = element => {
     if (/^(INPUT|TEXTAREA|SELECT|VIDEO|AUDIO|IMG|IFRAME|OBJECT|EMBED)$/.test(element.tagName)) return null;
     try { return chrome.dom?.openOrClosedShadowRoot(element) || element.shadowRoot; } catch { return element.shadowRoot; }
@@ -45,6 +46,10 @@
           if (roots.length > 65) throw Object.assign(new Error('页面影子根超过 64 个，请缩小页面范围'), { code: 'DOCUMENT_LIMIT' });
         }
       }
+    }
+    distributed = new WeakMap();
+    for (const element of elements) if (element.tagName === 'SLOT') {
+      for (const node of element.assignedNodes()) distributed.set(node, element);
     }
     if (!state.domRoots || roots.length !== state.domRoots.length || roots.some(item => !state.domRoots.includes(item))) {
       state.revision++; state.observer.disconnect();

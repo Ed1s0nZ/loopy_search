@@ -4,9 +4,9 @@
 
 | 需求 | 当前证据 | 尚需核对 |
 | --- | --- | --- |
-| BF-001 | 真实 Chrome open/closed/nested/实际 slot、隐藏 host、输入值过滤 | 敏感编辑区组合和隐藏 slot 父链 |
-| BF-002 | 真实影子 click/fill/select；mutation、host hidden、节点替换拒绝；自动预算与同节点连续操作 | 任意新挂载根导致旧引用失效 |
-| BF-003 | 跨源、同源、srcdoc、about:blank；未选读取拒绝；元数据只枚举 | 嵌套 frame 及特殊 sandbox 失败状态 |
+| BF-001 | 真实 Chrome open/closed/nested/实际 slot、隐藏 host、输入值过滤 | 敏感编辑区组合（隐藏 slot 父链已由实际闭合根测试证明） |
+| BF-002 | 真实影子 click/fill/select；mutation、host hidden、节点替换拒绝；自动预算与同节点连续操作 | 新挂载影子根的根集合变化已证明旧引用拒绝 |
+| BF-003 | 跨源、同源、srcdoc、about:blank；未选读取拒绝；元数据只枚举 | 嵌套跨源 frame / 隐藏祖先裁剪已证明；特殊 sandbox 失败状态仍待核对 |
 | BF-004 | 默认 manifest optional；真实 Chrome 无权限时 FRAME_PERMISSION，顶层照常；单元拒绝/撤销；UI 同步手势调用和错误显示 | 原生弹窗可视交互与实际撤销后的 UI 变化 |
 | BF-005 | 实际助手切换后暂停预览，批准后模型才能看到子内容，填写待单次确认 | list_frames、子页 scroll / root navigate 组合 |
 | BF-006 | 子文档同 URL 重载拒绝；父导航撤销选择；指定 documentIds | 子 frame DOM 替换和跨环境组合 |
