@@ -1,0 +1,11 @@
+# 浏览器视觉辅助交付记录
+
+## F0 接入与门禁
+
+2026-10-07，用户已授权全量最佳实践实施，先浏览器操作，密钥不进入 GitHub，独立环境避免真实数据写入；提交身份 Ed1s0nZ。上一轮 progress：PR #7 当前 OPEN/draft、head 7cc8279，push/PR CI SUCCESS，工作区干净。本分支 codex/browser-vision 基于 #7，依赖提交，不改主分支。
+
+Workflow Gate Report：用户请求浏览器高级操作；阶段 P1/P5/P7；类型截图、模型多模态、隐私与执行 UI。已有 DOM/scope/grants/runner/真实扩展测试；缺截图采集、遮挡、坐标校验、模型图像合同。生产实施须先完成需求/设计/计划，用户既有自主授权覆盖可推断方案。范围是明确启用的视口截图、发送预览、额外遮挡、视觉坐标动作及新截图复核；验证必须证明截图绑定当前页、敏感区域遮挡、未经批准不发送、坐标操作始终确认及失效拒绝。截图可能含无法自动识别的业务机密，预览必须可进一步遮挡。
+
+Maintainability Gate Report：跨模型/执行/隐私/UI，medium；runner 148 行，browser 97 行，page-tools 119 行，旧 popup/content 大文件不改。先独立 vision 页面探测、图像处理、IO 与 UI 模块，不在编排器混入像素算法。允许 feature_after_refactor/adapter_extraction，测试单元策略、实际截图像素、Canvas 合成动作、拒绝旧截图、模型输入、既有回归。禁止默认截图、任意 JS、任意标签捕获和隐藏自动坐标点击。
+
+Feature Lifecycle Report：功能 BA-VISION；当前 F0；默认现有任务不截图，需要视觉判断的页面缺像素上下文。目标按需启用视觉、截图前明确焦点影响、发送前检查与遮挡、坐标后确认实际结果。公开输入新增 vision，工具新增 click_point；模型需支持图像输入。密钥继续后台持有，图像仅内存。F0/F1/F2/F3 分别提交推送；F4 代码与实现，F5 验证使用，F6 changelog/review/draft PR。没有商店发布或主分支合并授权。
