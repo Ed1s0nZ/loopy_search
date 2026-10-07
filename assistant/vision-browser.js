@@ -80,12 +80,12 @@ export function createVisionBrowser(api, bridge, { now = Date.now, image = maskI
       const rendered = await image(capture.base, capture.probe.viewport, extra, true); stopped(signal);
       capture.extra = extra; Object.assign(capture, rendered); return this.view();
     },
-    async resolve(tabId, action, scope, signal, documentKey) {
+    async resolve(tabId, action, scope, signal, documentKey, secrets = []) {
       const capture = await validate(tabId, action.args.imageId, scope, signal, documentKey);
       if (blockedPoint(action.args.x, action.args.y, [...capture.masks, ...capture.extra])) throw fail('BLOCKED', '不能点击截图遮挡区域');
       await pixels(capture, scope, signal, documentKey);
       const target = await probe(tabId, scope, signal, 'resolve', { ...capture.probe, ...action.args });
-      return { privateToken: target.token, target: { label: redactText(target.label), tag: target.tag, x: target.x, y: target.y, synthetic: true } };
+      return { privateToken: target.token, target: { label: redactText(target.label, secrets), tag: target.tag, x: target.x, y: target.y, synthetic: true } };
     },
     async execute(tabId, action, pending, scope, signal, documentKey, guard) {
       const capture = await validate(tabId, action.args.imageId, scope, signal, documentKey);

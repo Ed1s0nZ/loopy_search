@@ -18,7 +18,7 @@ export class TaskActions {
     const pending = { id: crypto.randomUUID(), action,
       target: session.observation.elements.find(element => element.id === action.args.elementId) ?? { url: action.args.url } };
     if (action.tool === 'click_point') {
-      const resolved = await this.browser.vision.resolve(session.tabId, action, session.scope, session.controller.signal, session.allowedDocument);
+      const resolved = await this.browser.vision.resolve(session.tabId, action, session.scope, session.controller.signal, session.allowedDocument, [session.config.apiKey]);
       guard(); pending.visionTarget = resolved; pending.target = resolved.target;
     }
     if (action.tool === 'close_tab') {

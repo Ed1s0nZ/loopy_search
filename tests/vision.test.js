@@ -58,3 +58,12 @@ test('overflow hides the entire viewport and expiry refuses reuse before new cap
   overflow = false; await vision.capture(1, scope, null, 'doc', ['local-private']);
   assert.deepEqual(received, [{ x: 10, y: 10, width: 20, height: 10 }]);
 });
+test('visual target labels redact nonstandard configured credentials without injecting them into the page', async () => {
+  let now = 10000; const opaque = ['local', 'private', 'value'].join('_'); const injected = [];
+  const probe = { ok: true, documentToken: 'doc', pageUrl: 'https://example.test/', revision: 0, layoutKey: 'layout', viewport: { width: 100, height: 80, dpr: 1 }, masks: [], textRects: [], overflow: false };
+  const api = { tabs: { query: async () => [{ id: 1 }], update: async () => {}, captureVisibleTab: async () => 'raw-image' }, windows: { update: async () => {} }, scripting: { executeScript: async request => { injected.push(request.args); return [{ result: request.args[0] === 'resolve' ? { ok: true, token: 'target', label: opaque, tag: 'canvas', x: 10, y: 20 } : probe }]; } } };
+  const vision = createVisionBrowser(api, { source: async () => {}, ready: async () => {}, check: async () => ({ windowId: 1 }) }, { now: () => now, image: async () => ({ dataUrl: 'masked-image', width: 100, height: 80 }) });
+  const scope = { windowId: 1 }; const view = await vision.capture(1, scope, null, 'doc', [opaque]); now += 1000;
+  const result = await vision.resolve(1, { args: { imageId: view.id, x: 10, y: 20 } }, scope, null, 'doc', [opaque]);
+  assert.equal(result.target.label, '[REDACTED]'); assert(!JSON.stringify(injected).includes(opaque));
+});

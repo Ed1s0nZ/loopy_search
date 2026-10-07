@@ -35,3 +35,7 @@ Feature Lifecycle Report：功能 BA-VISION；当前 F0；默认现有任务不�
 - review.md 核对截图隐私、范围、消息/内存生命周期、坐标确认和模块边界；CHANGELOG Unreleased 记录具体场景、权限和可信输入限制。
 - 依赖 #7 的 draft PR，当前无合并/发布；基线 #6/#7 合入后再复核目标分支。最新 head CI 在 PR 中核对，不能用旧 CI 代替。
 - 全量目标保持 active；下一项 BA-FRAME，随后 BA-TOOLS / BA-REPLAY 及信任、代理等完整路线。
+
+### 最终隐私审查修正
+
+坐标目标 label 现在也使用后台配置密钥进行精确脱敏，防非标准凭据不匹配通用正则。新增单元证明确认目标脱敏且秘密不注入页面脚本；36 单元、check、视觉 E2E 8/8 通过。同步 verification/review 与 PR 描述；不新增付费请求。
