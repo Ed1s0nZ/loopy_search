@@ -6,6 +6,10 @@ export function stripImages(messages) {
 }
 export async function captureObservation(browser, session, observation) {
   if (!session.vision) return observation;
+  if (session.frameId > 0) {
+    browser.vision.clear(); stripImages(session.messages);
+    return { ...observation, visionNote: '当前为子框架 DOM；切回顶层后可重新预览整个标签截图' };
+  }
   const vision = await browser.vision.capture(session.tabId, session.scope, session.controller.signal, observation.documentKey, [session.config.apiKey]);
   return { ...observation, vision };
 }

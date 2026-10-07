@@ -41,6 +41,6 @@ export function sanitizeObservation(observation, secrets = []) {
         label: redactText(option.label, secrets).slice(0, 100)
       })) } : {})
     })),
-    coverage: '当前页面顶层可见 DOM；不含输入值、跨域 iframe、Canvas 或闭合 Shadow DOM'
+    shadowRoots: observation.shadowRoots ?? 0, coverage: observation.coverage || '当前文档可见 DOM；不含输入值'
   };
 }

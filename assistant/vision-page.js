@@ -3,6 +3,7 @@ export function visionPage(command, args = {}) {
   const error = (code, message) => ({ ok: false, code, error: message });
   const state = globalThis.__loopyAssistantPage_v2;
   if (!state) return error('STALE_SNAPSHOT', '请先观察页面');
+  let tree; try { tree = globalThis.__loopyDOMRuntime?.refresh(state); } catch { return error('DOCUMENT_LIMIT', '页面结构超过预算'); }
   if (state.observer.takeRecords().length) state.revision++;
   const viewport = { width: innerWidth, height: innerHeight, scrollX, scrollY, dpr: devicePixelRatio };
   const rect = element => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
@@ -18,13 +19,13 @@ export function visionPage(command, args = {}) {
     handler: element.getAttribute('onclick'), form: element.closest('form') ? [element.closest('form').action, element.closest('form').method, element.closest('form').target] : null, rect: rect(element) });
   const masks = []; const textRects = []; const layout = [];
   let overflow = false;
-  for (const element of document.querySelectorAll('input,textarea,select,[contenteditable],iframe,img,video,object,embed')) {
+  const allNodes = tree?.elements ?? [...document.querySelectorAll('*')];
+  for (const element of allNodes.filter(element => element.matches('input,textarea,select,[contenteditable],iframe,img,video,object,embed'))) {
     if (visible(element)) masks.push(rect(element)); if (masks.length > 1000) { overflow = true; break; }
   }
-  const allNodes = document.querySelectorAll('*');
   if (allNodes.length > 30000) overflow = true;
   else for (const element of allNodes) {
-    if ((element.shadowRoot || element.tagName.includes('-')) && visible(element)) masks.push(rect(element));
+    if ((globalThis.__loopyDOMRuntime?.root(element) || element.shadowRoot || element.tagName.includes('-')) && visible(element)) masks.push(rect(element));
     if (masks.length > 1000) { overflow = true; break; }
   }
   const walker = document.createTreeWalker(document.body ?? document.documentElement, NodeFilter.SHOW_TEXT);

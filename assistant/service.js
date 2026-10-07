@@ -2,11 +2,13 @@ import { createBrowserTools } from './browser.js';
 import { AssistantRunner } from './runner.js';
 import { complete } from './model.js';
 import { assertEndpoint, trustedPage } from './policy.js';
+import { frameSummary } from './frame-adapter.js';
 import { tabSummary } from './scope.js';
 
 export function installAssistant(api, settings) {
   let port = null;
-  const runner = new AssistantRunner({ browser: createBrowserTools(api), complete,
+  const browser = createBrowserTools(api);
+  const runner = new AssistantRunner({ browser, complete,
     notify: state => { try { port?.postMessage({ type: 'state', state }); } catch { runner.stop('界面连接已断开'); } } });
   api.runtime.onConnect.addListener(connection => {
     if (connection.name !== 'loopy-assistant' || !trustedPage(connection.sender, api.runtime)) return;
@@ -39,6 +41,12 @@ export function installAssistant(api, settings) {
           return (await api.tabs.query(query)).filter(tab => /^https?:/.test(tab.url ?? '') && Boolean(tab.incognito) === incognito)
             .map(tab => ({ ...tabSummary(tab, [config.apiKey]), active: tab.active }));
         }
+        case 'assistant:frames': {
+          const tab = await api.tabs.get(message.tabId);
+          if (Boolean(tab.incognito) !== Boolean(sender.tab?.incognito ?? api.extension?.inIncognitoContext) || sender.tab && tab.windowId !== sender.tab.windowId) throw new Error('框架不在当前窗口/环境');
+          const config = await settings.config();
+          return (await browser.frames.catalog(message.tabId)).map(frame => ({ ...frameSummary(frame, [config.apiKey]), documentId: frame.documentId }));
+        }
         case 'assistant:config': {
           if (runner.session && ['preparing', 'preview', 'running', 'confirmation'].includes(runner.session.status)) throw new Error('任务运行期间不能修改模型配置');
           return settings.save(message.config);
@@ -47,7 +55,7 @@ export function installAssistant(api, settings) {
           if (!port) throw new Error('请先连接助手界面');
           const config = await settings.config();
           assertEndpoint(config.apiUrl);
-          return runner.prepare({ tabId: message.tabId, tabIds: message.tabIds, mode: message.mode, vision: message.vision, task: message.task, config,
+          return runner.prepare({ tabId: message.tabId, tabIds: message.tabIds, frameIds: message.frameIds, frameDocuments: message.frameDocuments, mode: message.mode, vision: message.vision, task: message.task, config,
             incognito: Boolean(sender.tab?.incognito ?? api.extension?.inIncognitoContext) });
         }
         case 'assistant:visionMasks': return runner.maskVision(message.id, message.previewId, message.masks);

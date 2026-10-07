@@ -2,7 +2,7 @@ const tools = {
   observe: [], click: ['snapshotId', 'elementId'],
   fill: ['snapshotId', 'elementId', 'value'], select: ['snapshotId', 'elementId', 'value'],
   scroll: ['direction', 'amount'], navigate: ['url'], finish: ['summary'],
-  click_point: ['imageId', 'x', 'y'], list_tabs: [], switch_tab: ['tabId'], open_tab: ['url'], close_tab: ['tabId']
+  list_frames: [], switch_frame: ['frameId'], click_point: ['imageId', 'x', 'y'], list_tabs: [], switch_tab: ['tabId'], open_tab: ['url'], close_tab: ['tabId']
 };
 export const WRITE_TOOLS = new Set(['click', 'fill', 'select', 'navigate', 'open_tab', 'close_tab', 'click_point']);
 
@@ -40,7 +40,7 @@ export function validateAction(raw, mode = 'read') {
       if (!Number.isInteger(args[key]) || args[key] < 0 || args[key] > 16000) throw fail('INVALID_ACTION', '需要有效视口坐标');
       continue;
     }
-    if (key === 'tabId') {
+    if (key === 'tabId' || key === 'frameId') {
       if (!Number.isInteger(args[key]) || args[key] < 0) throw fail('INVALID_ACTION', '需要有效标签页 ID');
       continue;
     }

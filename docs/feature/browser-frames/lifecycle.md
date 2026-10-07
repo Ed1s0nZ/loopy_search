@@ -9,3 +9,11 @@ Workflow Gate Report：阶段 P1/P5/P7，页面结构、范围、权限与执行
 Maintainability Gate Report：跨 UI/Chrome/页面协议 medium；page-tools 119、browser 100、runner 164 行；旧 content/popup 不新增业务。先提取独立 composed DOM runtime 与 frame adapter，浏览器与状态机仅薄组合。允许 adapter_extraction / feature_after_refactor；生产模块目标低于 200 行，固定工具不接受 selector/JS。验证单元范围合同与真实扩展跨源、srcdoc、影子/slot、mutation、授权及原回归。
 
 Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或嵌入表单中无法完成任务。目标为同一套观察/确认覆盖新结构，影子内容视为当前页面，iframe 单独选择。新增可选 webNavigation 权限（仅枚举当前页 frame，不监听历史），列表/切换 frame 工具与 frameIds 启动参数。F0/F1/F2/F3 文档各提交推送，F4 实现记录，F5 需求映射与使用，F6 changelog/review/draft PR。未授权商店发布，无 paid 模型调用必要。
+
+## F4 实现进展（未完成 F5/F6）
+
+新增独立 dom-runtime / frame-adapter / frame-ui，使用 Chrome 隔离世界 openOrClosedShadowRoot 遍历开放/闭合/嵌套根并观察 mutation；固定工具引用沿用快照/元素授权。框架默认顶层，列表仅元数据，选择绑定父 documentId，执行使用具体 Chrome documentIds，子文档观察检查可见性，父页重载撤销子范围。模型 list_frames/switch_frame；切换先暂停预览，填写仍单次确认。子框架只用 DOM，上次截图和图片历史清除，切回顶层才能重新获取标签截图。
+
+真实 Chromium 本地测试新增 5 项（含父测试）：闭合/嵌套/slot fallback、隐藏/输入值过滤、影子填写和 mutation 失效、跨源 iframe/srcdoc/未选择/隐藏拒绝、助手切换后二次预览与单次确认、子/父文档重载。测试临时复制扩展并预授予 webNavigation，**不代表原生可选权限弹窗已验证**。本轮模型请求全部本地合成，无付费 API 调用，无真实站点写入。
+
+待 F5：扩展同源/about:blank、实际 slot 分发、影子 select/click 和自动授权、权限 UI/视觉边界/预算更多覆盖；完整需求映射和 UI 检视。待 F6：review、changelog、草稿 PR 与 CI。不得据现有子集测试宣称 BA-FRAME 全量完成。

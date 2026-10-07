@@ -15,6 +15,7 @@
       <label for="target">目标标签页</label><select id="target"></select>
       <p class="hint">默认仅访问初始页。需要比较多页时，在下面明确选择本次任务范围。</p>
       <details id="scopePicker"><summary>允许访问的其他标签页</summary><div id="scopeTabs"></div><p class="hint">最多 8 页；不会访问未选定的页面。切换任务页后，发送新页面内容仍需批准。</p></details>
+      <details id="framePicker"><summary>允许访问的 iframe 框架</summary><button id="loadFrames" type="button">加载 iframe 列表（按需权限）</button><div id="frameChoices"></div><p id="frameHint" class="hint"></p></details><p id="currentFrame" class="hint"></p>
       <label for="task">任务</label><textarea id="task" rows="4" maxlength="4000" placeholder="例如：总结当前页面，提取表单和关键链接。"></textarea>
       <label for="mode">执行模式</label><select id="mode"><option value="read">只读分析</option><option value="assist">辅助操作 · 每次修改需确认</option><option value="auto">限定范围自动操作 · 预览中明确授权</option></select>
       <label class="check"><input id="visionEnabled" type="checkbox">启用截图与视觉辅助</label><p class="hint">默认不截图。启用后会短暂激活目标标签，每张图发送前需检查并批准；需要支持图像输入的模型。坐标点击始终单次确认。</p>

@@ -5,7 +5,7 @@ import { publicUrl, redactText } from './privacy.js';
 export class TaskActions {
   constructor(browser) { this.browser = browser; }
   assertTarget(session, action) {
-    if (action.tool === 'click_point' && (!session.vision || session.observation.vision?.id !== action.args.imageId)) throw fail('STALE_SNAPSHOT', '视觉动作需要当前批准的截图');
+    if (action.tool === 'click_point' && (!session.vision || session.frameId > 0 || session.observation.vision?.id !== action.args.imageId)) throw fail('STALE_SNAPSHOT', '视觉动作需要当前批准的截图');
     if (['switch_tab', 'close_tab'].includes(action.tool)) requireTaskTab(session.scope, action.args.tabId);
     if (action.tool === 'close_tab' && session.scope.tabs.length < 2) throw fail('SCOPE', '不能关闭最后一个任务标签页');
     if (action.tool === 'open_tab' && session.scope.tabs.length >= MAX_TASK_TABS) throw fail('SCOPE', '任务最多允许 8 个标签页');
@@ -36,25 +36,32 @@ export class TaskActions {
         await this.browser.vision.execute(session.tabId, action, pending?.visionTarget, session.scope, signal, session.allowedDocument, guard);
         return { tool: action.tool, executed: true, synthetic: true };
       case 'observe': return { tool: action.tool, executed: false };
+      case 'list_frames': {
+        const frames = await this.browser.frames.list(session.tabId, session.scope, [session.config.apiKey]); guard(); return { tool: action.tool, frames, executed: false };
+      }
+      case 'switch_frame':
+        await this.browser.frames.check(session.tabId, action.args.frameId, session.scope); guard(); session.frameId = action.args.frameId;
+        return { tool: action.tool, frameId: session.frameId, executed: true };
       case 'list_tabs': {
         const tabs = await this.browser.listScope(session.scope, [session.config.apiKey]); guard();
         session.scope.tabs = tabs; return { tool: action.tool, tabs, executed: false };
       }
-      case 'switch_tab': session.tabId = action.args.tabId; return { tool: action.tool, tabId: session.tabId, executed: true };
+      case 'switch_tab': session.tabId = action.args.tabId; session.frameId = 0; return { tool: action.tool, tabId: session.tabId, executed: true };
       case 'open_tab': {
         const id = await this.browser.openTab(session.tabId, action.args.url, session.scope, signal, session.allowedDocument, guard);
         guard();
         session.scope.tabs.push({ id, title: '新建任务页面', url: publicUrl(action.args.url) });
-        session.tabId = id; return { tool: action.tool, tabId: id, executed: true };
+        session.tabId = id; session.frameId = 0; return { tool: action.tool, tabId: id, executed: true };
       }
       case 'close_tab': {
         if (!pending?.closeTarget) throw fail('STALE_CONFIRMATION', '缺少关闭目标的确认记录');
         await this.browser.closeTab(action.args.tabId, pending.closeTarget, session.scope, signal, guard); guard();
         session.scope.tabs = session.scope.tabs.filter(tab => tab.id !== action.args.tabId);
-        if (session.tabId === action.args.tabId) session.tabId = session.scope.tabs[0].id;
+        if (session.tabId === action.args.tabId) { session.tabId = session.scope.tabs[0].id; session.frameId = 0; }
         return { tool: action.tool, tabId: action.args.tabId, executed: true };
       }
       default: await this.browser.execute(session.tabId, action, signal, session.allowedDocument, session.scope, guard);
+        if (action.tool === 'navigate') session.frameId = 0;
         return { tool: action.tool, executed: true };
     }
   }

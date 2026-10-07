@@ -1,7 +1,9 @@
+import { createFrameUI } from './assistant/frame-ui.js';
 import { createVisionUI } from './assistant/vision-ui.js';
 import { createScopeUI } from './assistant/scope-ui.js';
 const $ = id => document.getElementById(id);
 const scopeUI = createScopeUI();
+const frameUI = createFrameUI({ request, guarded });
 const visionUI = createVisionUI({ apply: masks => guarded(async () => { updateState(await request('assistant:visionMasks', { id: state.id, previewId: state.preview.id, masks })); }) });
 let state = { status: 'idle', events: [] };
 let config = {}; let busy = false; let port;
@@ -50,7 +52,7 @@ function render() {
   }
   $('emptyEvents').hidden = Boolean(state.events?.length);
   $('usage').textContent = state.usage ? `服务报告用量：输入 ${state.usage.prompt_tokens} / 输出 ${state.usage.completion_tokens} tokens` : '';
-  scopeUI.render(state, busy, busy || active()); visionUI.render(state, busy);
+  scopeUI.render(state, busy, busy || active()); visionUI.render(state, busy); frameUI.render(state, busy || active());
 }
 async function loadTabs() {
   const tabs = await request('assistant:tabs'); const previous = Number($('target').value);
@@ -69,7 +71,7 @@ function connect() {
   port.onMessage.addListener(message => { if (message.type === 'state') { updateState(message.state); render(); } });
   port.onDisconnect.addListener(() => { state = { ...state, status: 'stopped', pending: null, preview: null }; $('notice').textContent = '后台连接已断开，任务停止；请重新打开助手。'; render(); });
 }
-$('prepare').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:prepare', { tabId: Number($('target').value), tabIds: scopeUI.tabIds(), task: $('task').value, mode: $('mode').value, vision: $('visionEnabled').checked })); }));
+$('prepare').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:prepare', { tabId: Number($('target').value), tabIds: scopeUI.tabIds(), ...frameUI.selection(), task: $('task').value, mode: $('mode').value, vision: $('visionEnabled').checked })); }));
 $('approvePreview').addEventListener('click', () => guarded(async () => { visionUI.assertReady(); updateState(await request('assistant:preview', { id: state.id, previewId: state.preview.id, automation: scopeUI.approval(state.mode) })); }));
 $('approveAction').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true })); }));
 $('rejectAction').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: false })); }));

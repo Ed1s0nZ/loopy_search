@@ -17,7 +17,7 @@ export class AssistantRunner {
   view() {
     const session = this.session;
     if (!session) return { status: 'idle', events: [], revision: this.revision };
-    return clone({ revision: this.revision, id: session.id, tabId: session.tabId, status: session.status, mode: session.mode,
+    return clone({ revision: this.revision, id: session.id, tabId: session.tabId, frameId: session.frameId, status: session.status, mode: session.mode,
       task: session.task, steps: session.steps, events: session.events, result: session.result, error: session.error,
       vision: session.vision, scope: session.scope ? publicScope(session.scope) : [], automation: session.grants.view(),
       pending: session.pending ? { id: session.pending.id, action: session.pending.action, target: session.pending.target } : null,
@@ -34,20 +34,23 @@ export class AssistantRunner {
     if (this.session !== session || !ACTIVE.has(session.status) || session.controller.signal.aborted) throw fail('STOPPED', '任务已停止');
     if (this.now() - session.started > this.maxTimeMs) throw fail('TIMEOUT', '任务达到时间上限，请缩小任务后重试');
   }
-  async prepare({ tabId, tabIds, mode, task, config, incognito, vision = false }) {
+  async prepare({ tabId, tabIds, mode, task, config, incognito, frameIds, frameDocuments, vision = false }) {
     if (this.session && (ACTIVE.has(this.session.status) || this.session.inFlight)) throw fail('BUSY', '请先停止当前任务并等待结束');
     validateTabIds(tabId, tabIds);
     if (typeof vision !== 'boolean') throw fail('INVALID_TASK', '视觉开关无效');
     clearVision(this.browser, this.session);
     if (!['read', 'assist', 'auto'].includes(mode) || typeof task !== 'string' || !task.trim() || task.length > 4000) throw fail('INVALID_TASK', '请填写有效任务（最多 4000 字）');
-    const session = { id: crypto.randomUUID(), tabId, mode, vision, task: redactText(task.trim(), [config.apiKey]),
+    const session = { id: crypto.randomUUID(), tabId, frameId: 0, mode, vision, task: redactText(task.trim(), [config.apiKey]),
       config: { ...config }, status: 'preparing', steps: 0, events: [], controller: new AbortController(),
       started: this.now(), usage: { prompt_tokens: 0, completion_tokens: 0 }, messages: [], inFlight: true,
       grants: new AutomaticGrants({ now: this.now }) };
     this.session = session; this.publish();
     try {
       session.scope = await this.browser.prepareScope(tabId, tabIds, [config.apiKey], incognito); this.assertRunning(session);
-      let observation = await this.browser.observe(tabId, [config.apiKey], session.controller.signal, session.scope);
+      if (frameIds !== undefined) await this.browser.frames.prepare(tabId, frameIds, session.scope, frameDocuments);
+      this.assertRunning(session);
+      let observation = await this.browser.observe(tabId, [config.apiKey], session.controller.signal, session.scope, session.frameId);
+      if (this.browser.frames) observation.frames = await this.browser.frames.list(session.tabId, session.scope, [session.config.apiKey]);
       observation = await captureObservation(this.browser, session, observation);
       this.assertRunning(session); this.setPreview(session, observation);
     } catch (error) { this.handleError(session, error); }
@@ -87,10 +90,11 @@ export class AssistantRunner {
     guard();
     const result = await this.actions.execute(session, action, guard, pending); this.assertRunning(session);
     session.messages.push({ role: 'user', content: JSON.stringify({ toolResult: result, note: '根据新的页面观察判断结果' }) });
-    let observation = await this.browser.observe(session.tabId, [session.config.apiKey], session.controller.signal, session.scope);
+    let observation = await this.browser.observe(session.tabId, [session.config.apiKey], session.controller.signal, session.scope, session.frameId);
     this.assertRunning(session);
     const tab = session.scope.tabs.find(tab => tab.id === session.tabId);
-    if (tab) { tab.title = observation.title; tab.url = observation.url; }
+    if (tab && session.frameId === 0) { tab.title = observation.title; tab.url = observation.url; }
+    if (this.browser.frames) observation.frames = await this.browser.frames.list(session.tabId, session.scope, [session.config.apiKey]);
     observation = await captureObservation(this.browser, session, observation); this.assertRunning(session);
     if (session.vision || observation.documentKey !== session.allowedDocument) this.setPreview(session, observation);
     else session.observation = observation;

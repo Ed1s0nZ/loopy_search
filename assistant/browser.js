@@ -1,3 +1,4 @@
+import { createFrameAdapter } from './frame-adapter.js';
 import { createVisionBrowser } from './vision-browser.js';
 import { pageTool } from './page-tools.js';
 import { assertWebUrl, fail } from './policy.js';
@@ -6,6 +7,7 @@ import { validateTabIds, assertScopedTab, tabSummary } from './scope.js';
 
 export function createBrowserTools(api) {
   const documents = new Map();
+  const frameSummarySafe = (raw, secrets) => ({ frameId: raw.frameId || 0, url: /^about:(blank|srcdoc)$/.test(raw.pageUrl) ? '[嵌入文档]' : sanitizeObservation(raw, secrets).url });
   async function check(tabId, scope, loading = false) {
     let tab;
     try { tab = await api.tabs.get(tabId); } catch { throw fail('PAGE_UNAVAILABLE', '目标标签页已关闭或不可访问'); }
@@ -24,19 +26,31 @@ export function createBrowserTools(api) {
     }
     throw fail('TIMEOUT', '页面尚未加载完成，请稍后重新开始');
   }
-  async function invoke(tabId, command, args, signal, scope, authorize = () => {}) {
+  const frames = createFrameAdapter(api, { checkTab: check });
+  async function invoke(tabId, command, args, signal, scope, authorize = () => {}, frameId = 0, documentId) {
     await ready(tabId, signal, scope); stopped(signal); authorize();
+    const frame = frameId ? await frames.check(tabId, frameId, scope) : null;
+    const target = { tabId, ...(documentId || frame?.documentId ? { documentIds: [documentId || frame.documentId] } : frameId ? { frameIds: [frameId] } : {}) };
+    return frames.visible(tabId, frameId, async () => {
     let results;
-    try { results = await api.scripting.executeScript({ target: { tabId }, world: 'ISOLATED', func: pageTool, args: [command, args] }); }
-    catch { throw fail('PAGE_UNAVAILABLE', '无法访问页面；请检查扩展站点权限'); }
+    try {
+      await api.scripting.executeScript({ target, world: 'ISOLATED', files: ['assistant/dom-runtime.js'] });
+      if (frameId && !['document', 'observe'].includes(command)) {
+        const visibility = await api.scripting.executeScript({ target, world: 'ISOLATED', func: pageTool, args: ['visibility', { ...args, _embedded: true }] });
+        if (!visibility[0]?.result?.ok) throw fail(visibility[0]?.result?.code || 'FRAME_HIDDEN', '框架隐藏或不可见');
+      }
+      stopped(signal); authorize();
+      results = await api.scripting.executeScript({ target, world: 'ISOLATED', func: pageTool, args: [command, { ...args, _embedded: Boolean(frameId) }] }); }
+    catch (error) { if (error.code) throw error; throw fail(documentId ? 'STALE_SNAPSHOT' : 'PAGE_UNAVAILABLE', documentId ? '目标文档已经变化，请重新观察' : '无法访问页面；请检查扩展站点权限'); }
     const result = results?.[0]?.result;
     if (!result?.ok) throw fail(result?.code ?? 'PAGE_UNAVAILABLE', result?.error ?? '页面观察失败');
-    return { ...result, chromeDocumentId: results[0].documentId };
+    return { ...result, frameId, chromeDocumentId: results[0].documentId };
+    });
   }
   function record(tab, raw) {
-    if (!raw.documentToken || raw.pageUrl !== tab.url) throw fail('STALE_SNAPSHOT', '页面在观察过程中发生变化，请重试');
-    const key = `${tab.id}|${raw.chromeDocumentId || raw.documentToken}|${raw.pageUrl}`;
-    const saved = { key, tabId: tab.id, url: tab.url, title: tab.title, windowId: tab.windowId,
+    if (!raw.documentToken || !raw.frameId && raw.pageUrl !== tab.url) throw fail('STALE_SNAPSHOT', '页面在观察过程中发生变化，请重试');
+    const key = `${tab.id}|${raw.frameId || 0}|${raw.chromeDocumentId || raw.documentToken}|${raw.pageUrl}`;
+    const saved = { key, tabId: tab.id, frameId: raw.frameId || 0, url: raw.pageUrl, title: tab.title, windowId: tab.windowId,
       incognito: Boolean(tab.incognito), token: raw.documentToken, chromeDocumentId: raw.chromeDocumentId };
     documents.set(key, saved);
     if (documents.size > 64) documents.delete(documents.keys().next().value);
@@ -44,14 +58,15 @@ export function createBrowserTools(api) {
   }
   async function source(tabId, key, signal, scope) {
     const saved = documents.get(key); const tab = await check(tabId, scope);
-    if (!saved || saved.tabId !== tab.id || saved.url !== tab.url || saved.windowId !== tab.windowId || saved.incognito !== Boolean(tab.incognito)) throw fail('STALE_SNAPSHOT', '目标文档或窗口已经变化');
-    const raw = await invoke(tabId, 'document', { _documentToken: saved.token, _expectedUrl: saved.url }, signal, scope);
+    const frame = saved?.frameId ? await frames.check(tabId, saved.frameId, scope) : null;
+    if (!saved || saved.tabId !== tab.id || saved.url !== (frame?.url || tab.url) || saved.windowId !== tab.windowId || saved.incognito !== Boolean(tab.incognito)) throw fail('STALE_SNAPSHOT', '目标文档或窗口已经变化');
+    const raw = await invoke(tabId, 'document', { _documentToken: saved.token, _expectedUrl: saved.url }, signal, scope, () => {}, saved.frameId, saved.chromeDocumentId);
     if (raw.chromeDocumentId !== saved.chromeDocumentId) throw fail('STALE_SNAPSHOT', '目标页面已经重载');
     return saved;
   }
   const vision = createVisionBrowser(api, { ready, check, source });
   return {
-    vision,
+    vision, frames,
     async prepareScope(tabId, tabIds, secrets, incognito) {
       const ids = validateTabIds(tabId, tabIds); const tabs = await Promise.all(ids.map(id => check(id)));
       const initial = tabs.find(tab => tab.id === tabId);
@@ -63,11 +78,12 @@ export function createBrowserTools(api) {
       const tabs = await Promise.all(scope.tabs.map(tab => check(tab.id, scope)));
       return tabs.map(tab => tabSummary(tab, secrets));
     },
-    async observe(tabId, secrets, signal, scope) {
+    async observe(tabId, secrets, signal, scope, frameId = 0) {
       await check(tabId, scope);
-      const raw = await invoke(tabId, 'observe', {}, signal, scope);
+      const raw = await invoke(tabId, 'observe', {}, signal, scope, () => {}, frameId);
+      if (frameId && (await frames.check(tabId, frameId, scope)).documentId !== raw.chromeDocumentId) throw fail('STALE_SNAPSHOT', '子框架在观察过程中重载');
       const saved = record(await check(tabId, scope), raw);
-      return { ...sanitizeObservation(raw, secrets), documentKey: saved.key };
+      return { ...sanitizeObservation(raw, secrets), ...(/^about:(blank|srcdoc)$/.test(raw.pageUrl) ? { url: '[嵌入文档]' } : {}), documentKey: saved.key, frameId, frame: frameSummarySafe(raw, secrets) };
     },
     async execute(tabId, action, signal, expectedDocument, scope, authorize = () => {}) {
       const saved = await source(tabId, expectedDocument, signal, scope);
@@ -77,7 +93,7 @@ export function createBrowserTools(api) {
         await api.tabs.update(tabId, { url }); await ready(tabId, signal, scope);
         return { ok: true, message: '导航完成' };
       }
-      return invoke(tabId, action.tool, { ...action.args, _documentToken: saved.token, _expectedUrl: saved.url }, signal, scope, authorize);
+      return invoke(tabId, action.tool, { ...action.args, _documentToken: saved.token, _expectedUrl: saved.url }, signal, scope, authorize, saved.frameId, saved.chromeDocumentId);
     },
     async openTab(tabId, url, scope, signal, expectedDocument, authorize) {
       await source(tabId, expectedDocument, signal, scope); stopped(signal); authorize();
