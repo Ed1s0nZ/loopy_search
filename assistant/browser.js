@@ -5,19 +5,20 @@ import { validateTabIds, assertScopedTab, tabSummary } from './scope.js';
 
 export function createBrowserTools(api) {
   const documents = new Map();
-  async function check(tabId, scope) {
+  async function check(tabId, scope, loading = false) {
     let tab;
     try { tab = await api.tabs.get(tabId); } catch { throw fail('PAGE_UNAVAILABLE', '目标标签页已关闭或不可访问'); }
-    try { assertWebUrl(tab.url); } catch { throw fail('PAGE_UNAVAILABLE', '无法操作此页面；请打开普通 HTTP(S) 网页'); }
-    if (scope) assertScopedTab(scope, tab);
+    const inspected = loading && tab.pendingUrl ? { ...tab, url: tab.pendingUrl } : tab;
+    try { assertWebUrl(inspected.url); } catch { throw fail('PAGE_UNAVAILABLE', '无法操作此页面；请打开普通 HTTP(S) 网页'); }
+    if (scope) assertScopedTab(scope, inspected);
     return tab;
   }
   const stopped = signal => { if (signal?.aborted) throw fail('STOPPED', '任务已停止'); };
   async function ready(tabId, signal, scope) {
     for (let i = 0; i < 40; i++) {
       stopped(signal);
-      const tab = await check(tabId, scope);
-      if (tab.status === 'complete') return tab;
+      const tab = await check(tabId, scope, true);
+      if (tab.status === 'complete' && !tab.pendingUrl) return tab;
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     throw fail('TIMEOUT', '页面尚未加载完成，请稍后重新开始');
@@ -78,6 +79,7 @@ export function createBrowserTools(api) {
     async openTab(tabId, url, scope, signal, expectedDocument, authorize) {
       await source(tabId, expectedDocument, signal, scope); stopped(signal); authorize();
       const tab = await api.tabs.create({ windowId: scope.windowId, url: assertWebUrl(url).href, active: false });
+      await ready(tab.id, signal);
       return tab.id;
     },
     async describeTab(tabId, scope, signal) {

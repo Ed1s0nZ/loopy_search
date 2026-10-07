@@ -12,7 +12,7 @@
 
 新增模型工具：`list_tabs {}`、`switch_tab {tabId:number}`、`open_tab {url}`、`close_tab {tabId:number}`。只读可列出/切换授权页；新开/关闭只在 assist/auto，始终单次确认。切换更改任务目标，不操作窗口焦点。
 
-`assistant:prepare` 可增加 `tabIds:number[]`；省略仍单标签。后台重新读取并校验，绝不信任 UI 传入的 URL/title/incognito。`assistant:preview` 可增加 `automation:{grants:[{elementId,tool}],limit}`，仅 auto 模式接受。`assistant:revoke` 清除本次自动授权。
+`assistant:prepare` 可增加 `tabIds:number[]`；省略仍单标签。后台重新读取并校验，绝不信任 UI 传入的 URL/title/incognito。`assistant:preview` 可增加 `automation:{grants:[{elementId,tool}],limit,acknowledged}`，仅 auto 模式接受，非空授权必须 acknowledged 为 true。`assistant:revoke` 清除本次自动授权。
 
 ## 文档与元素身份
 

@@ -50,7 +50,7 @@ export function validateAction(raw, mode = 'read') {
   }
   if (['navigate', 'open_tab'].includes(raw.tool)) assertWebUrl(args.url);
   if (!['read', 'assist', 'auto'].includes(mode)) throw fail('INVALID_ACTION', '无效模式');
-  if (mode === 'read' && WRITE_TOOLS.has(raw.tool)) throw fail('READ_ONLY', '只读模式不允许点击、填写、选择或导航；请切换辅助模式后重新开始');
+  if (mode === 'read' && WRITE_TOOLS.has(raw.tool)) throw fail('READ_ONLY', '只读模式不允许页面写入、导航、新开或关闭标签；请切换辅助模式后重新开始');
   if (raw.reason !== undefined && (typeof raw.reason !== 'string' || raw.reason.length > 1000)) throw fail('INVALID_ACTION', '无效动作说明');
   return { tool: raw.tool, args: { ...args }, reason: raw.reason ?? '' };
 }
