@@ -1,5 +1,34 @@
 # AI划词搜索 Chrome扩展 (Loopy Search)
 
+## AI 浏览器助手（开发分支）
+
+支持自然语言读取当前网页，以及经过逐次确认的点击、填写、选择和导航。默认只读；模型不能执行任意 JavaScript。
+
+1. 使用 Chrome/Chromium 116+，在 `chrome://extensions/` 加载本仓库文件夹，已加载的扩展需要点击“重新加载”。
+2. 点击扩展弹窗中的“浏览器助手”，或使用 `Alt+Shift+A`。侧栏入口不可用时会打开独立助手标签页。
+3. 在“模型服务设置”填写完整 Chat Completions 地址、模型名称和密钥。与原有 API 设置共用配置；远程地址必须 HTTPS，本地回环服务允许 HTTP。
+4. 选择目标标签页、填写任务、选择只读或辅助模式，点击“预览页面与任务”。检查将发送的脱敏内容和服务地址，再批准发送。
+5. 辅助模式每次点击/填写/选择/导航都需要确认；页面变化时旧操作会被拒绝。新文档内容发送需要再次批准。
+6. 可随时停止；关闭助手界面会停止任务。已执行的页面操作不会自动撤销。
+
+例如：“总结当前公告，列出影响版本和修复建议。”或在本地测试页上：“填写研究关键词，但每一步先让我确认。”
+
+密钥仅由扩展后台读取并用于你配置的模型服务，存于浏览器本地设置，不进入源码、Chrome 同步或 GitHub。发送预览会去掉网址 query/fragment、隐藏输入值、脱敏常见凭据；仍须自行检查业务机密。当前覆盖顶层可见 DOM，iframe/Canvas/跨标签操作在后续路线中。
+
+开发验证（Node 22+）：
+
+```sh
+npm ci
+npm test
+npm run check
+npx playwright install chromium
+npm run test:e2e
+```
+
+`npm ci` 安装本地 pre-commit 敏感信息扫描 hook。CI 只使用合成模型和临时浏览器。真实服务测试必须显式运行 `npm run test:live` 或 `npm run test:live-browser`，配置从仓库外 `~/.config/loopy-search/testing.json`（0600）或 `LOOPY_TEST_CONFIG` 指定的私有文件读取，不要把该文件复制进仓库。
+
+详见 [浏览器助手需求](docs/feature/browser-assistant/requirements.md)、[设计](docs/feature/browser-assistant/design.md)、[验证记录](docs/feature/browser-assistant/verification.md) 和 [完整升级路线](docs/roadmap.md)。
+
 <div align="center">
   <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="300px">
   

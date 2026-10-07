@@ -58,4 +58,4 @@
 
 ## 后续阶段
 
-F5 待记录完整验证与使用说明；其他能力在 docs/roadmap.md 保留完整范围，不以浏览器助手代替全量目标。
+F4 提交：17bcf49，已推送。F5：verification.md 和 README 记录自动、真实扩展、真实 DeepSeek、视觉和隐私证据。其他能力在 docs/roadmap.md 保留完整范围，不以浏览器助手代替全量目标。
