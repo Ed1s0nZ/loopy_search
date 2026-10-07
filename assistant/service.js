@@ -47,9 +47,10 @@ export function installAssistant(api, settings) {
           if (!port) throw new Error('请先连接助手界面');
           const config = await settings.config();
           assertEndpoint(config.apiUrl);
-          return runner.prepare({ tabId: message.tabId, tabIds: message.tabIds, mode: message.mode, task: message.task, config,
+          return runner.prepare({ tabId: message.tabId, tabIds: message.tabIds, mode: message.mode, vision: message.vision, task: message.task, config,
             incognito: Boolean(sender.tab?.incognito ?? api.extension?.inIncognitoContext) });
         }
+        case 'assistant:visionMasks': return runner.maskVision(message.id, message.previewId, message.masks);
         case 'assistant:preview': return runner.approvePreview(message.id, message.previewId, message.automation);
         case 'assistant:confirm': return runner.confirm(message.id, message.confirmationId, message.approved);
         case 'assistant:stop': return runner.stop();

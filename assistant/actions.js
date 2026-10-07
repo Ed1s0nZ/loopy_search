@@ -5,6 +5,7 @@ import { publicUrl, redactText } from './privacy.js';
 export class TaskActions {
   constructor(browser) { this.browser = browser; }
   assertTarget(session, action) {
+    if (action.tool === 'click_point' && (!session.vision || session.observation.vision?.id !== action.args.imageId)) throw fail('STALE_SNAPSHOT', '视觉动作需要当前批准的截图');
     if (['switch_tab', 'close_tab'].includes(action.tool)) requireTaskTab(session.scope, action.args.tabId);
     if (action.tool === 'close_tab' && session.scope.tabs.length < 2) throw fail('SCOPE', '不能关闭最后一个任务标签页');
     if (action.tool === 'open_tab' && session.scope.tabs.length >= MAX_TASK_TABS) throw fail('SCOPE', '任务最多允许 8 个标签页');
@@ -16,6 +17,10 @@ export class TaskActions {
     this.assertTarget(session, action);
     const pending = { id: crypto.randomUUID(), action,
       target: session.observation.elements.find(element => element.id === action.args.elementId) ?? { url: action.args.url } };
+    if (action.tool === 'click_point') {
+      const resolved = await this.browser.vision.resolve(session.tabId, action, session.scope, session.controller.signal, session.allowedDocument);
+      guard(); pending.visionTarget = resolved; pending.target = resolved.target;
+    }
     if (action.tool === 'close_tab') {
       pending.closeTarget = await this.browser.describeTab(action.args.tabId, session.scope, session.controller.signal);
       guard();
@@ -27,6 +32,9 @@ export class TaskActions {
     guard(); this.assertTarget(session, action);
     const signal = session.controller.signal;
     switch (action.tool) {
+      case 'click_point':
+        await this.browser.vision.execute(session.tabId, action, pending?.visionTarget, session.scope, signal, session.allowedDocument, guard);
+        return { tool: action.tool, executed: true, synthetic: true };
       case 'observe': return { tool: action.tool, executed: false };
       case 'list_tabs': {
         const tabs = await this.browser.listScope(session.scope, [session.config.apiKey]); guard();

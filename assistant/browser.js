@@ -1,3 +1,4 @@
+import { createVisionBrowser } from './vision-browser.js';
 import { pageTool } from './page-tools.js';
 import { assertWebUrl, fail } from './policy.js';
 import { sanitizeObservation } from './privacy.js';
@@ -48,7 +49,9 @@ export function createBrowserTools(api) {
     if (raw.chromeDocumentId !== saved.chromeDocumentId) throw fail('STALE_SNAPSHOT', '目标页面已经重载');
     return saved;
   }
+  const vision = createVisionBrowser(api, { ready, check, source });
   return {
+    vision,
     async prepareScope(tabId, tabIds, secrets, incognito) {
       const ids = validateTabIds(tabId, tabIds); const tabs = await Promise.all(ids.map(id => check(id)));
       const initial = tabs.find(tab => tab.id === tabId);

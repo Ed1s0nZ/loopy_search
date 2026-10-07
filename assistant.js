@@ -1,6 +1,8 @@
+import { createVisionUI } from './assistant/vision-ui.js';
 import { createScopeUI } from './assistant/scope-ui.js';
 const $ = id => document.getElementById(id);
 const scopeUI = createScopeUI();
+const visionUI = createVisionUI({ apply: masks => guarded(async () => { updateState(await request('assistant:visionMasks', { id: state.id, previewId: state.preview.id, masks })); }) });
 let state = { status: 'idle', events: [] };
 let config = {}; let busy = false; let port;
 function updateState(next) {
@@ -21,7 +23,7 @@ async function guarded(callback) {
 }
 function render() {
   $('status').textContent = names[state.status] ?? '未知状态';
-  for (const id of ['prepare', 'target', 'task', 'mode', 'refreshTabs', 'saveConfig', 'apiUrl', 'modelName', 'apiKey', 'clearKey']) $(id).disabled = busy || active();
+  for (const id of ['visionEnabled', 'prepare', 'target', 'task', 'mode', 'refreshTabs', 'saveConfig', 'apiUrl', 'modelName', 'apiKey', 'clearKey']) $(id).disabled = busy || active();
   $('stop').disabled = !active();
   $('steps').textContent = `${state.steps ?? 0} 步 / 16`;
   $('previewCard').hidden = state.status !== 'preview';
@@ -30,7 +32,8 @@ function render() {
   if (state.preview) {
     $('destination').textContent = `服务：${state.endpoint} · 模型：${state.model} · 目标标签：${state.tabId}`;
     $('previewTask').textContent = `任务：${state.task}`;
-    $('preview').textContent = JSON.stringify(state.preview, null, 2);
+    const { vision, ...textPreview } = state.preview;
+    $('preview').textContent = JSON.stringify({ ...textPreview, ...(vision ? { screenshot: { width: vision.width, height: vision.height, viewport: vision.viewport, maskedCount: vision.maskedCount } } : {}) }, null, 2);
   }
   if (state.pending) {
     const action = state.pending.action;
@@ -47,7 +50,7 @@ function render() {
   }
   $('emptyEvents').hidden = Boolean(state.events?.length);
   $('usage').textContent = state.usage ? `服务报告用量：输入 ${state.usage.prompt_tokens} / 输出 ${state.usage.completion_tokens} tokens` : '';
-  scopeUI.render(state, busy, busy || active());
+  scopeUI.render(state, busy, busy || active()); visionUI.render(state, busy);
 }
 async function loadTabs() {
   const tabs = await request('assistant:tabs'); const previous = Number($('target').value);
@@ -66,8 +69,8 @@ function connect() {
   port.onMessage.addListener(message => { if (message.type === 'state') { updateState(message.state); render(); } });
   port.onDisconnect.addListener(() => { state = { ...state, status: 'stopped', pending: null, preview: null }; $('notice').textContent = '后台连接已断开，任务停止；请重新打开助手。'; render(); });
 }
-$('prepare').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:prepare', { tabId: Number($('target').value), tabIds: scopeUI.tabIds(), task: $('task').value, mode: $('mode').value })); }));
-$('approvePreview').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:preview', { id: state.id, previewId: state.preview.id, automation: scopeUI.approval(state.mode) })); }));
+$('prepare').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:prepare', { tabId: Number($('target').value), tabIds: scopeUI.tabIds(), task: $('task').value, mode: $('mode').value, vision: $('visionEnabled').checked })); }));
+$('approvePreview').addEventListener('click', () => guarded(async () => { visionUI.assertReady(); updateState(await request('assistant:preview', { id: state.id, previewId: state.preview.id, automation: scopeUI.approval(state.mode) })); }));
 $('approveAction').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true })); }));
 $('rejectAction').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: false })); }));
 for (const id of ['stop', 'rejectPreview']) $(id).addEventListener('click', async () => {

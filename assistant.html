@@ -17,6 +17,7 @@
       <details id="scopePicker"><summary>允许访问的其他标签页</summary><div id="scopeTabs"></div><p class="hint">最多 8 页；不会访问未选定的页面。切换任务页后，发送新页面内容仍需批准。</p></details>
       <label for="task">任务</label><textarea id="task" rows="4" maxlength="4000" placeholder="例如：总结当前页面，提取表单和关键链接。"></textarea>
       <label for="mode">执行模式</label><select id="mode"><option value="read">只读分析</option><option value="assist">辅助操作 · 每次修改需确认</option><option value="auto">限定范围自动操作 · 预览中明确授权</option></select>
+      <label class="check"><input id="visionEnabled" type="checkbox">启用截图与视觉辅助</label><p class="hint">默认不截图。启用后会短暂激活目标标签，每张图发送前需检查并批准；需要支持图像输入的模型。坐标点击始终单次确认。</p>
       <p id="currentTarget" class="hint"></p>
       <div class="actions"><button id="prepare" class="primary">预览页面与任务</button><button id="stop" class="danger" disabled>停止</button></div>
       <p class="hint">不会执行模型生成的 JavaScript。密码和敏感输入不采集；脱敏无法保证识别所有业务机密，请检查预览。</p>
@@ -25,6 +26,7 @@
       <h2>发送前检查</h2><p id="destination" class="hint"></p>
       <p id="previewTask"></p><pre id="preview"></pre>
       <p class="hint">以下内容将发送给你配置的模型服务。网址查询参数与输入值不采集；新页面会再次请求批准。</p>
+      <div id="visionEditor" hidden><h2>检查截图与补充遮挡</h2><p class="hint">输入、编辑区、图片/媒体、iframe 和常见凭据已遮挡，但无法识别所有业务机密。拖拽添加遮挡，再应用；仅下方处理后的图像会发送。坐标为原始视口 CSS 像素。</p><div class="vision-image-wrap"><img id="visionImage" alt="待批准的脱敏网页截图"><svg id="visionOverlay" aria-label="拖拽选择截图遮挡区域"></svg></div><button id="zoomVision" type="button">放大检查截图</button><dialog id="visionZoom"><button id="closeVisionZoom" type="button">关闭放大预览</button><img id="visionZoomImage" alt="完整尺寸的脱敏截图"></dialog><details><summary>用键盘输入遮挡区域</summary><div class="mask-fields"><label>X<input id="maskX" type="number" min="0" value="0"></label><label>Y<input id="maskY" type="number" min="0" value="0"></label><label>宽度<input id="maskWidth" type="number" min="1" value="100"></label><label>高度<input id="maskHeight" type="number" min="1" value="100"></label></div><button id="addVisionMask" type="button">添加区域</button></details><p id="visionMaskStatus" class="hint"></p><ol id="visionMaskList"></ol><div class="actions"><button id="applyVisionMasks" type="button">应用遮挡</button><button id="clearVisionMasks" type="button">清除额外遮挡</button></div></div>
       <div id="automationOptions" hidden>
         <h2>自动操作授权</h2><p class="hint">默认没有自动权限。选中具体元素与动作后，在当前文档中最多自动执行指定次数，有效期 60 秒。页面重载、目标描述变化或元素替换后不能复用。点击可能提交、发送或删除业务数据，请仅授权你确认的目标。</p>
         <label for="autoLimit">本次最多自动操作次数</label><input id="autoLimit" type="number" min="1" max="8" value="3">

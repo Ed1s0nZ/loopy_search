@@ -2,9 +2,9 @@ const tools = {
   observe: [], click: ['snapshotId', 'elementId'],
   fill: ['snapshotId', 'elementId', 'value'], select: ['snapshotId', 'elementId', 'value'],
   scroll: ['direction', 'amount'], navigate: ['url'], finish: ['summary'],
-  list_tabs: [], switch_tab: ['tabId'], open_tab: ['url'], close_tab: ['tabId']
+  click_point: ['imageId', 'x', 'y'], list_tabs: [], switch_tab: ['tabId'], open_tab: ['url'], close_tab: ['tabId']
 };
-export const WRITE_TOOLS = new Set(['click', 'fill', 'select', 'navigate', 'open_tab', 'close_tab']);
+export const WRITE_TOOLS = new Set(['click', 'fill', 'select', 'navigate', 'open_tab', 'close_tab', 'click_point']);
 
 export function fail(code, message) {
   const error = new Error(message); error.code = code; return error;
@@ -36,6 +36,10 @@ export function validateAction(raw, mode = 'read') {
   }
   for (const key of allowed) {
     if (key === 'amount') continue;
+    if (['x', 'y'].includes(key)) {
+      if (!Number.isInteger(args[key]) || args[key] < 0 || args[key] > 16000) throw fail('INVALID_ACTION', '需要有效视口坐标');
+      continue;
+    }
     if (key === 'tabId') {
       if (!Number.isInteger(args[key]) || args[key] < 0) throw fail('INVALID_ACTION', '需要有效标签页 ID');
       continue;
@@ -44,6 +48,7 @@ export function validateAction(raw, mode = 'read') {
     if (args[key].length > (key === 'summary' ? 12000 : key === 'value' ? 4000 : 2048)) throw fail('INVALID_ACTION', '参数过长');
   }
   if (args.snapshotId && !/^[a-zA-Z0-9-]{8,80}$/.test(args.snapshotId)) throw fail('INVALID_ACTION', '无效快照标识');
+  if (args.imageId && !/^[a-zA-Z0-9-]{8,80}$/.test(args.imageId)) throw fail('INVALID_ACTION', '无效截图标识');
   if (args.elementId && !/^e\d{1,3}$/.test(args.elementId)) throw fail('INVALID_ACTION', '无效元素标识');
   if (raw.tool === 'scroll' && (!['up', 'down'].includes(args.direction) || args.amount !== undefined && (!Number.isInteger(args.amount) || args.amount < 100 || args.amount > 1200))) {
     throw fail('INVALID_ACTION', '滚动范围必须为 100–1200 像素');
