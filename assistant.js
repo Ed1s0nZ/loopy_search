@@ -1,4 +1,6 @@
+import { createScopeUI } from './assistant/scope-ui.js';
 const $ = id => document.getElementById(id);
+const scopeUI = createScopeUI();
 let state = { status: 'idle', events: [] };
 let config = {}; let busy = false; let port;
 function updateState(next) {
@@ -45,12 +47,14 @@ function render() {
   }
   $('emptyEvents').hidden = Boolean(state.events?.length);
   $('usage').textContent = state.usage ? `服务报告用量：输入 ${state.usage.prompt_tokens} / 输出 ${state.usage.completion_tokens} tokens` : '';
+  scopeUI.render(state, busy, busy || active());
 }
 async function loadTabs() {
   const tabs = await request('assistant:tabs'); const previous = Number($('target').value);
   $('target').replaceChildren();
   for (const tab of tabs) { const option = document.createElement('option'); option.value = tab.id; option.textContent = tab.title; option.selected = tab.id === previous || !previous && tab.active; $('target').append(option); }
   if (!tabs.length) { const option = document.createElement('option'); option.textContent = '请先打开普通网页'; option.value = ''; $('target').append(option); }
+  scopeUI.setTabs(tabs);
 }
 function updateConfig(next) {
   config = next; $('apiUrl').value = config.apiUrl ?? ''; $('modelName').value = config.model ?? '';
@@ -62,14 +66,17 @@ function connect() {
   port.onMessage.addListener(message => { if (message.type === 'state') { updateState(message.state); render(); } });
   port.onDisconnect.addListener(() => { state = { ...state, status: 'stopped', pending: null, preview: null }; $('notice').textContent = '后台连接已断开，任务停止；请重新打开助手。'; render(); });
 }
-$('prepare').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:prepare', { tabId: Number($('target').value), task: $('task').value, mode: $('mode').value })); }));
-$('approvePreview').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:preview', { id: state.id, previewId: state.preview.id })); }));
+$('prepare').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:prepare', { tabId: Number($('target').value), tabIds: scopeUI.tabIds(), task: $('task').value, mode: $('mode').value })); }));
+$('approvePreview').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:preview', { id: state.id, previewId: state.preview.id, automation: scopeUI.approval(state.mode) })); }));
 $('approveAction').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: true })); }));
 $('rejectAction').addEventListener('click', () => guarded(async () => { updateState(await request('assistant:confirm', { id: state.id, confirmationId: state.pending.id, approved: false })); }));
 for (const id of ['stop', 'rejectPreview']) $(id).addEventListener('click', async () => {
   try { updateState(await request('assistant:stop')); render(); } catch { $('notice').textContent = '连接失败，请关闭助手以停止任务'; }
 });
 $('refreshTabs').addEventListener('click', () => guarded(loadTabs));
+$('revokeAutomation').addEventListener('click', async () => {
+  try { updateState(await request('assistant:revoke', { id: state.id })); render(); } catch (error) { $('notice').textContent = error.message; }
+});
 $('configForm').addEventListener('submit', event => {
   event.preventDefault(); void guarded(async () => {
     const values = { apiUrl: $('apiUrl').value.trim(), model: $('modelName').value.trim() };

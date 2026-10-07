@@ -1,9 +1,10 @@
 const tools = {
   observe: [], click: ['snapshotId', 'elementId'],
   fill: ['snapshotId', 'elementId', 'value'], select: ['snapshotId', 'elementId', 'value'],
-  scroll: ['direction', 'amount'], navigate: ['url'], finish: ['summary']
+  scroll: ['direction', 'amount'], navigate: ['url'], finish: ['summary'],
+  list_tabs: [], switch_tab: ['tabId'], open_tab: ['url'], close_tab: ['tabId']
 };
-export const WRITE_TOOLS = new Set(['click', 'fill', 'select', 'navigate']);
+export const WRITE_TOOLS = new Set(['click', 'fill', 'select', 'navigate', 'open_tab', 'close_tab']);
 
 export function fail(code, message) {
   const error = new Error(message); error.code = code; return error;
@@ -27,7 +28,7 @@ export function assertEndpoint(value) {
 export function validateAction(raw, mode = 'read') {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw fail('INVALID_ACTION', '模型动作必须是 JSON 对象');
   if (Object.keys(raw).some(key => !['tool', 'args', 'reason'].includes(key))) throw fail('INVALID_ACTION', '模型动作包含未知字段');
-  const allowed = tools[raw.tool];
+  const allowed = Object.hasOwn(tools, raw.tool) ? tools[raw.tool] : null;
   if (!allowed) throw fail('INVALID_ACTION', '不支持的工具');
   const args = raw.args ?? {};
   if (typeof args !== 'object' || args === null || Array.isArray(args) || Object.keys(args).some(key => !allowed.includes(key))) {
@@ -35,6 +36,10 @@ export function validateAction(raw, mode = 'read') {
   }
   for (const key of allowed) {
     if (key === 'amount') continue;
+    if (key === 'tabId') {
+      if (!Number.isInteger(args[key]) || args[key] < 0) throw fail('INVALID_ACTION', '需要有效标签页 ID');
+      continue;
+    }
     if (typeof args[key] !== 'string' || !args[key].trim() && key !== 'value') throw fail('INVALID_ACTION', `缺少有效 ${key}`);
     if (args[key].length > (key === 'summary' ? 12000 : key === 'value' ? 4000 : 2048)) throw fail('INVALID_ACTION', '参数过长');
   }
@@ -43,8 +48,8 @@ export function validateAction(raw, mode = 'read') {
   if (raw.tool === 'scroll' && (!['up', 'down'].includes(args.direction) || args.amount !== undefined && (!Number.isInteger(args.amount) || args.amount < 100 || args.amount > 1200))) {
     throw fail('INVALID_ACTION', '滚动范围必须为 100–1200 像素');
   }
-  if (raw.tool === 'navigate') assertWebUrl(args.url);
-  if (!['read', 'assist'].includes(mode)) throw fail('INVALID_ACTION', '无效模式');
+  if (['navigate', 'open_tab'].includes(raw.tool)) assertWebUrl(args.url);
+  if (!['read', 'assist', 'auto'].includes(mode)) throw fail('INVALID_ACTION', '无效模式');
   if (mode === 'read' && WRITE_TOOLS.has(raw.tool)) throw fail('READ_ONLY', '只读模式不允许点击、填写、选择或导航；请切换辅助模式后重新开始');
   if (raw.reason !== undefined && (typeof raw.reason !== 'string' || raw.reason.length > 1000)) throw fail('INVALID_ACTION', '无效动作说明');
   return { tool: raw.tool, args: { ...args }, reason: raw.reason ?? '' };

@@ -10,6 +10,7 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 10));
 function setup(actions = [finish], options = {}) {
   let calls = 0; const writes = []; const observations = [snapshot()];
   const runner = new AssistantRunner({ browser: {
+    prepareScope: async (tabId, tabIds = [tabId]) => ({ windowId: 1, incognito: false, tabs: tabIds.map(id => ({ id, title: 'fixture', url: 'https://example.test/' })) }),
     observe: async () => structuredClone(observations.length > 1 ? observations.shift() : observations[0]),
     execute: async (...args) => { writes.push(args); }
   }, complete: async () => ({ content: JSON.stringify(actions[calls++] ?? finish) }), ...options });

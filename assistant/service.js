@@ -2,6 +2,7 @@ import { createBrowserTools } from './browser.js';
 import { AssistantRunner } from './runner.js';
 import { complete } from './model.js';
 import { assertEndpoint, trustedPage } from './policy.js';
+import { tabSummary } from './scope.js';
 
 export function installAssistant(api, settings) {
   let port = null;
@@ -31,8 +32,13 @@ export function installAssistant(api, settings) {
     (async () => {
       switch (message.action) {
         case 'assistant:get': return { state: runner.view(), config: await settings.publicConfig() };
-        case 'assistant:tabs': return (await api.tabs.query({ lastFocusedWindow: true }))
-          .filter(tab => /^https?:/.test(tab.url ?? '')).map(tab => ({ id: tab.id, title: tab.title?.slice(0, 160) || '网页', active: tab.active }));
+        case 'assistant:tabs': {
+          const query = sender.tab ? { windowId: sender.tab.windowId } : { lastFocusedWindow: true };
+          const incognito = Boolean(sender.tab?.incognito ?? api.extension?.inIncognitoContext);
+          const config = await settings.config();
+          return (await api.tabs.query(query)).filter(tab => /^https?:/.test(tab.url ?? '') && Boolean(tab.incognito) === incognito)
+            .map(tab => ({ ...tabSummary(tab, [config.apiKey]), active: tab.active }));
+        }
         case 'assistant:config': {
           if (runner.session && ['preparing', 'preview', 'running', 'confirmation'].includes(runner.session.status)) throw new Error('任务运行期间不能修改模型配置');
           return settings.save(message.config);
@@ -41,11 +47,13 @@ export function installAssistant(api, settings) {
           if (!port) throw new Error('请先连接助手界面');
           const config = await settings.config();
           assertEndpoint(config.apiUrl);
-          return runner.prepare({ tabId: message.tabId, mode: message.mode, task: message.task, config });
+          return runner.prepare({ tabId: message.tabId, tabIds: message.tabIds, mode: message.mode, task: message.task, config,
+            incognito: Boolean(sender.tab?.incognito ?? api.extension?.inIncognitoContext) });
         }
-        case 'assistant:preview': return runner.approvePreview(message.id, message.previewId);
+        case 'assistant:preview': return runner.approvePreview(message.id, message.previewId, message.automation);
         case 'assistant:confirm': return runner.confirm(message.id, message.confirmationId, message.approved);
         case 'assistant:stop': return runner.stop();
+        case 'assistant:revoke': return runner.revoke(message.id);
         default: throw new Error('未知助手操作');
       }
     })().then(data => respond({ success: true, data })).catch(error => respond({ success: false,

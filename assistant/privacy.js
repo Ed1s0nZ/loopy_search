@@ -32,6 +32,8 @@ export function sanitizeObservation(observation, secrets = []) {
     text: redactText(observation.text, secrets).slice(0, 12000),
     elements: (observation.elements ?? []).slice(0, 80).map(element => ({
       id: element.id, tag: element.tag, type: element.type,
+      ...(typeof element.grantId === 'string' ? { grantId: element.grantId } : {}),
+      capabilities: (element.capabilities ?? []).filter(tool => ['click', 'fill', 'select'].includes(tool)),
       label: redactText(element.label, secrets).slice(0, 180),
       ...(element.href ? { href: publicUrl(element.href) } : {}),
       ...(element.options ? { options: element.options.slice(0, 30).map(option => ({

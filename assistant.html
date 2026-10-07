@@ -13,9 +13,11 @@
     <section class="card">
       <div class="section-heading"><h1>让浏览器帮你完成工作</h1><button id="refreshTabs" class="quiet" aria-label="刷新标签页列表">刷新</button></div>
       <label for="target">目标标签页</label><select id="target"></select>
-      <p class="hint">任务固定在所选标签页；切换标签不会改变执行目标。</p>
+      <p class="hint">默认仅访问初始页。需要比较多页时，在下面明确选择本次任务范围。</p>
+      <details id="scopePicker"><summary>允许访问的其他标签页</summary><div id="scopeTabs"></div><p class="hint">最多 8 页；不会访问未选定的页面。切换任务页后，发送新页面内容仍需批准。</p></details>
       <label for="task">任务</label><textarea id="task" rows="4" maxlength="4000" placeholder="例如：总结当前页面，提取表单和关键链接。"></textarea>
-      <label for="mode">执行模式</label><select id="mode"><option value="read">只读分析</option><option value="assist">辅助操作 · 每次修改需确认</option></select>
+      <label for="mode">执行模式</label><select id="mode"><option value="read">只读分析</option><option value="assist">辅助操作 · 每次修改需确认</option><option value="auto">限定范围自动操作 · 预览中明确授权</option></select>
+      <p id="currentTarget" class="hint"></p>
       <div class="actions"><button id="prepare" class="primary">预览页面与任务</button><button id="stop" class="danger" disabled>停止</button></div>
       <p class="hint">不会执行模型生成的 JavaScript。密码和敏感输入不采集；脱敏无法保证识别所有业务机密，请检查预览。</p>
     </section>
@@ -23,6 +25,12 @@
       <h2>发送前检查</h2><p id="destination" class="hint"></p>
       <p id="previewTask"></p><pre id="preview"></pre>
       <p class="hint">以下内容将发送给你配置的模型服务。网址查询参数与输入值不采集；新页面会再次请求批准。</p>
+      <div id="automationOptions" hidden>
+        <h2>自动操作授权</h2><p class="hint">默认没有自动权限。选中具体元素与动作后，在当前文档中最多自动执行指定次数，有效期 60 秒。页面重载、目标描述变化或元素替换后不能复用。点击可能提交、发送或删除业务数据，请仅授权你确认的目标。</p>
+        <label for="autoLimit">本次最多自动操作次数</label><input id="autoLimit" type="number" min="1" max="8" value="3">
+        <div id="autoGrants"></div>
+        <label class="check"><input id="autoAcknowledge" type="checkbox">我允许以上选中的元素与操作自动执行</label>
+      </div>
       <div class="actions"><button id="approvePreview" class="primary">批准发送并开始</button><button id="rejectPreview">取消</button></div>
     </section>
     <section id="confirmationCard" class="card confirm" hidden>
@@ -31,7 +39,7 @@
       <div class="actions"><button id="approveAction" class="primary">允许这一步</button><button id="rejectAction">拒绝并停止</button></div>
     </section>
     <section id="resultCard" class="card" hidden><h2>结果</h2><div id="result" class="result"></div></section>
-    <section class="card"><div class="section-heading"><h2>执行过程</h2><span id="steps" class="hint">0 步</span></div><ol id="events" aria-live="polite"></ol><p id="emptyEvents" class="hint">输入任务后先预览页面，再开始执行。</p><p id="usage" class="hint"></p></section>
+    <section class="card"><div class="section-heading"><h2>执行过程</h2><span id="steps" class="hint">0 步</span></div><p id="automationStatus" class="hint"></p><button id="revokeAutomation" hidden>撤销自动授权</button><ol id="events" aria-live="polite"></ol><p id="emptyEvents" class="hint">输入任务后先预览页面，再开始执行。</p><p id="usage" class="hint"></p></section>
     <details id="settings" class="card"><summary>模型服务设置</summary>
       <form id="configForm">
         <label for="apiUrl">Chat Completions 完整地址</label><input id="apiUrl" type="url" required placeholder="https://你的服务/chat/completions" autocomplete="off">

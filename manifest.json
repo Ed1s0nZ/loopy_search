@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "incognito": "split",
   "name": "AI划词搜索",
   "version": "1.0",
   "description": "选中文本，使用AI解释内容",

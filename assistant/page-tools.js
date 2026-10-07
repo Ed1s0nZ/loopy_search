@@ -29,18 +29,21 @@ export function pageTool(command, args = {}) {
     }
     return true;
   };
-  const stateKey = '__loopyAssistantPage_v1';
+  const stateKey = '__loopyAssistantPage_v2';
   let state = globalThis[stateKey];
   if (!state) {
-    state = { revision: 0, refs: new Map(), snapshotId: null, url: null };
+    state = { revision: 0, refs: new Map(), identities: new WeakMap(), documentToken: crypto.randomUUID(), snapshotId: null, url: null };
     state.observer = new MutationObserver(() => state.revision++);
     state.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
     globalThis[stateKey] = state;
   }
   if (state.observer.takeRecords().length) state.revision++;
+  if (args._documentToken && (args._documentToken !== state.documentToken || args._expectedUrl !== location.href)) return error('STALE_SNAPSHOT', '目标文档已经变化，未执行操作');
+  if (command === 'document') return { ok: true, documentToken: state.documentToken, pageUrl: location.href };
   const fingerprint = element => JSON.stringify({
     tag: element.tagName, label: label(element), type: element.type,
-    href: element.getAttribute('href'), name: element.name, id: element.id,
+    href: element.getAttribute('href'), name: element.name, id: element.id, handler: element.getAttribute('onclick'),
+    form: element.closest('form') ? [element.closest('form').action, element.closest('form').method, element.closest('form').target] : null,
     options: element.options ? [...element.options].map(option => [option.value, option.textContent, option.disabled]) : null
   });
   if (command === 'observe') {
@@ -53,8 +56,16 @@ export function pageTool(command, args = {}) {
       if (!visible(element) || element.disabled || element.readOnly || sensitive(element) || ['hidden', 'file'].includes(element.type)) continue;
       if (element.tagName === 'A' && (!safeUrl(element.href) || element.hasAttribute('download'))) continue;
       const id = `e${elements.length + 1}`;
-      state.refs.set(id, { element, fingerprint: fingerprint(element) });
-      elements.push({ id, tag: element.tagName.toLowerCase(), type: element.type ?? '', label: redact(label(element)),
+      const signature = fingerprint(element);
+      let identity = state.identities.get(element);
+      if (!identity || identity.signature !== signature) {
+        identity = { signature, grantId: crypto.randomUUID() }; state.identities.set(element, identity);
+      }
+      const capabilities = ['click'];
+      if (element.tagName === 'SELECT') capabilities.push('select');
+      if (element.tagName === 'TEXTAREA' || element.isContentEditable || element.tagName === 'INPUT' && ['text', 'search', 'url', 'email', 'tel', 'number'].includes(element.type)) capabilities.push('fill');
+      state.refs.set(id, { element, fingerprint: signature });
+      elements.push({ id, grantId: identity.grantId, capabilities, tag: element.tagName.toLowerCase(), type: element.type ?? '', label: redact(label(element)),
         ...(element.tagName === 'A' ? { href: safeUrl(element.href) } : {}),
         ...(element.tagName === 'SELECT' ? { options: [...element.options].filter(option => !option.disabled).slice(0, 30)
           .map(option => ({ value: redact(option.value), label: redact(option.textContent) })) } : {}) });
@@ -69,7 +80,7 @@ export function pageTool(command, args = {}) {
       if (text) { pieces.push(text); length += text.length + 1; }
     }
     state.observedRevision = state.revision;
-    return { ok: true, snapshotId: state.snapshotId, url: safeUrl(location.href),
+    return { ok: true, documentToken: state.documentToken, pageUrl: location.href, snapshotId: state.snapshotId, url: safeUrl(location.href),
       title: redact(document.title), text: redact(pieces.join('\n').slice(0, 12000)), elements };
   }
   if (command === 'scroll') {
