@@ -6,9 +6,11 @@
 
 ## 01 AI 浏览器助手（当前）
 
+BA-AUTO / BA-MULTI 交付证据：[范围与自动授权验证](feature/browser-scope-automation/verification.md)。自动策略为元素/动作/次数/时限授权，其余写入逐次确认。
+
 - [x] BA：首切片的侧栏、顶层 DOM 观察、自然语言、受控操作、确认、停止、范围、隐私、内存轨迹、失败后重启、自动验证；证据见 docs/feature/browser-assistant/verification.md。高级能力如下仍未完成。
-- [ ] BA-AUTO：明确授权范围内的连续自动模式与可配置确认策略
-- [ ] BA-MULTI：多标签页操作与范围授权
+- [x] BA-AUTO：明确授权范围内的连续自动模式与可配置确认策略
+- [x] BA-MULTI：多标签页操作与范围授权
 - [ ] BA-VISION：截图/视觉辅助与可验证操作
 - [ ] BA-FRAME：iframe/Shadow DOM 覆盖
 - [ ] BA-TOOLS：调用代理、转换、请求、笔记、项目工具
