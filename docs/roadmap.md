@@ -12,7 +12,7 @@ BA-AUTO / BA-MULTI 交付证据：[范围与自动授权验证](feature/browser-
 - [x] BA-AUTO：明确授权范围内的连续自动模式与可配置确认策略
 - [x] BA-MULTI：多标签页操作与范围授权
 - [x] BA-VISION：截图/视觉辅助与可验证操作；证据见 [视觉验证](feature/browser-vision/verification.md)，视口截图与确认的合成坐标点击，非 trusted 输入
-- [ ] BA-FRAME：iframe/Shadow DOM 覆盖
+- [x] BA-FRAME：iframe/Shadow DOM 覆盖；[框架验证](feature/browser-frames/verification.md)，明确范围、可选权限、文档身份、closed/slot 与隐藏/敏感过滤；特殊页和 trusted 输入仍有明确边界
 - [ ] BA-TOOLS：调用代理、转换、请求、笔记、项目工具
 - [ ] BA-REPLAY：操作配方、回放与断点接管
 

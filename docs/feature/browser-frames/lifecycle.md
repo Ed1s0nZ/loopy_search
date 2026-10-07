@@ -79,3 +79,7 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 子 frame 发起 open/close 在 auto 模式仍两次单次确认；新页顶层、关闭返回原页顶层，原 URL 不变。对子 frame/catalog 跨窗口/incognito 状态的公共 gate 单元证明先拒绝后注入（0 次注入）。检视复现 disabled fieldset 子控件 .disabled=false 被误列的问题，改为检查原生 :disabled，DOM 与视觉执行同样拒绝；失败测试修复后完整 39 单元/50 扩展通过，秘密扫描通过。
 
 verification.md 按 BF-001..010 整理最终证据，保留浏览器版本、sandbox、可信输入、无痕本地配置共享等明确边界。需求原用户授权可实施，不声称文档逐项确认。后续 F6 自检、changelog、草稿 PR、对应 head CI；完整项目全量目标仍在推进。
+
+## F6 本地自检与交付
+
+实现者自检见 review.md，不冒充独立批准。CHANGELOG、README、路线已围绕最终实现更新，仅 BA-FRAME 有完整本地交付证据，其余 BA-TOOLS/BA-REPLAY 和全量路线未勾选。准备基于 codex/browser-vision 的草稿 PR，随后核对最终 head 的真实 CI；不合并或发布。
