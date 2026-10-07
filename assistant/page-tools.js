@@ -90,6 +90,7 @@ export async function pageTool(command, args = {}) {
     while ((node = walker.nextNode()) && length < 12000 && visited++ < 30000) {
       const parent = node.parentElement;
       if (dom ? !dom.textVisible(node) : !parent || parent.closest('script,style,noscript,template,input,textarea,select,[contenteditable],svg') || !visible(parent)) continue;
+      if (dom && dom.sensitiveRegion(parent || node.getRootNode()?.host)) continue;
       const text = node.textContent.replace(/\s+/g, ' ').trim();
       if (text) { pieces.push(text); length += text.length + 1; }
     }

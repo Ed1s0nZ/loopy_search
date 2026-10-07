@@ -9,6 +9,7 @@
   };
   const ancestors = element => { const result = []; for (let node = element; node; node = parent(node)) { if (result.includes(node)) break; result.push(node); } return result; };
   const within = (element, selector) => ancestors(element).some(node => node.matches(selector));
+  const sensitiveRegion = element => ancestors(element).some(node => /password|passwd|secret|token|api.?key|authorization|credit.?card|cvv|otp|密码|密钥|验证码/i.test([node.id, node.getAttribute('name'), node.getAttribute('aria-label'), node.getAttribute('autocomplete')].join(' ')));
   const styledVisible = element => !ancestors(element).some(node => {
     if (node.matches('[hidden],[inert],[aria-hidden="true"]')) return true;
     const css = getComputedStyle(node); return css.display === 'none' || ['hidden', 'collapse'].includes(css.visibility) || css.opacity === '0';
@@ -58,5 +59,5 @@
     }
     const tree = { roots, elements, textNodes, hosts }; state.domTree = tree; return tree;
   }
-  globalThis.__loopyDOMRuntime = { parent, root, ancestors, within, visible, textVisible, labelText, refresh };
+  globalThis.__loopyDOMRuntime = { parent, root, ancestors, within, sensitiveRegion, visible, textVisible, labelText, refresh };
 })();

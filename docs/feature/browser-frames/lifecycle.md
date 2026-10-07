@@ -43,3 +43,13 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 发现闭合 slot 的 assignedSlot 返回不可见引用时，原 composed parent 可能沿 light DOM 父链，遗漏实际 slot 父区域 opacity/hidden。runtime 现在在预算内遍历 SLOT.assignedNodes 建立 WeakMap 分发关系，每次刷新替换，避免残留节点。真实闭合 slot 内 opacity=0 父链排除文字/按钮；恢复后文字可见。新 attachShadow 根不产生普通子节点 mutation 时，根集合变化仍使旧 snapshot 拒绝。
 
 嵌套跨源 iframe 的 frameId/parentFrameId 和独立授权实际验证；未选拒绝，选后只观察子文档，祖先 iframe display:none 导致 FRAME_HIDDEN。专项 13 项（含父测试）通过；没有访问真实网站或 paid API。F5 验收表更新相关证据，仍未勾选全量完成。
+
+### F4 编辑区、视觉切换与 sandbox
+
+新增 composed 敏感区域判定：ancestor 的 id/name/aria-label/autocomplete 指示密钥、密码等时，正文不采集，并在视觉探测中遮挡实际文字范围。真实影子编辑器值/敏感 region 文字与普通命名但位于敏感父区域的输入均排除。
+
+真实视觉任务在顶层批准图片后切换子 frame：停在 DOM 预览，清除图片历史；子 frame 的合成模型 HTTP 请求没有 image_url/data:image。切回顶层生成不同 imageId 并重新停在图片预览，未批准不发送。测试窗口改 native viewport，防止截图和模拟 viewport 不一致。
+
+当前 Chromium 对 sandbox="" 的 srcdoc 允许扩展隔离世界注入，实测仅观察其自身安全文本，无父页面内容；代码保留不可注入时 PAGE_UNAVAILABLE 显式错误，不以 sandbox 名称断言全允许/全禁止。首次 fixture 的 load 监听在插入后安装导致等待，终止该已确认测试进程；改为先装监听后插入，再运行 16 项框架专项全部通过。不是产品错误，也未访问真实用户页面。
+
+模型提示补 list_frames/switch_frame 的只读工具清单，与真实 schema 对齐。F5 仍进行中，未完成原生弹窗/其余混合场景。

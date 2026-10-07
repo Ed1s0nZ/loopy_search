@@ -21,7 +21,7 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
     if (req.url === '/chat/completions') {
       let body = ''; for await (const chunk of req) body += chunk;
       bodies.push(body); modelCalls++; const input = JSON.parse(body);
-      const observations = input.messages.filter(message => message.role === 'user').map(message => { try { return JSON.parse(message.content).observation; } catch { return null; } }).filter(Boolean);
+      const observations = input.messages.filter(message => message.role === 'user').map(message => { try { return JSON.parse(Array.isArray(message.content) ? message.content.filter(part => part.type === 'text').map(part => part.text).join('') : message.content).observation; } catch { return null; } }).filter(Boolean);
       const observation = observations.at(-1);
       const executed = input.messages.some(message => message.role === 'assistant' && message.content.includes('"tool":"fill"'));
       let action = observation.frameId === 0 ? { tool: 'switch_frame', args: { frameId: desiredFrame } }
@@ -30,6 +30,10 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       if (behavior.startsWith('shadow')) {
         const count = input.messages.filter(message => message.role === 'assistant' && message.content.includes('"tool":"fill"')).length;
         action = count < 2 ? { tool: 'fill', args: { snapshotId: observation.snapshotId, elementId: observation.elements.find(item => item.label === 'shadow query').id, value: `shadow-auto-${count}` } } : { tool: 'finish', args: { summary: 'shadow complete' } };
+      }
+      if (behavior === 'vision-switch') {
+        const switches = input.messages.filter(message => message.role === 'assistant' && message.content.includes('"tool":"switch_frame"')).length;
+        action = switches < 2 ? { tool: 'switch_frame', args: { frameId: switches === 0 ? desiredFrame : 0 } } : { tool: 'finish', args: { summary: 'visual frame test' } };
       }
       const respond = () => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] })); };
       if (behavior === 'shadow-slow') { pendingModel = respond; return; }
@@ -61,7 +65,7 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
     manifest.permissions.push('webNavigation'); manifest.optional_permissions = manifest.optional_permissions.filter(value => value !== 'webNavigation');
     await writeFile(manifestFile, JSON.stringify(manifest));
     context = await chromium.launchPersistentContext(join(temp, 'profile'), { channel: 'chromium', headless: true,
-      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`], viewport: { width: 1100, height: 900 } });
+      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--window-size=1100,1000'], viewport: null });
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
     const page = await context.newPage(); await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.waitForFunction(() => frames.length === 6 && document.querySelector('#closed').getBoundingClientRect().height > 0);
@@ -125,6 +129,17 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       assert((await run('observe')).text.includes('new-root'));
       await page.evaluate(() => fixtureRoot.querySelector('#nested').shadowRoot.lastElementChild.remove());
     });
+    await t.test('sensitive composed ancestors and shadow editors never contribute values or region text', async () => {
+      await page.evaluate(() => {
+        const region = document.createElement('section'); region.id = 'api-secret-region';
+        region.innerHTML = '<p>private-region-content</p><input aria-label="ordinary query">'; fixtureRoot.append(region);
+        const editor = document.createElement('div'); editor.id = 'shadow-editor'; editor.contentEditable = 'true'; editor.textContent = 'private-editor-content'; fixtureRoot.append(editor);
+      });
+      const observation = await run('observe'); assert(!observation.error, observation.message);
+      assert(!JSON.stringify(observation).includes('private-region-content')); assert(!observation.text.includes('private-editor-content'));
+      assert(!observation.elements.some(item => item.label.includes('ordinary query')));
+      await page.evaluate(() => { fixtureRoot.querySelector('#api-secret-region').remove(); fixtureRoot.querySelector('#shadow-editor').remove(); });
+    });
     await t.test('only explicitly selected frames can be read; cross-origin and srcdoc route correctly', async () => {
       catalog = await run('catalog'); cross = catalog.find(item => item.url === childUrl); srcdoc = catalog.find(item => item.url === 'about:srcdoc'); hidden = catalog.find(item => item.url.includes('?hidden'));
       assert(cross && srcdoc && hidden);
@@ -177,6 +192,21 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       }
       throw new Error(`Missing task state ${status}`);
     };
+    await t.test('visual frame switching removes old images and requires new root screenshot consent', async () => {
+      behavior = 'vision-switch'; desiredFrame = cross.frameId;
+      const tabId = await harness.evaluate(() => globalThis.frameTestTab); const current = await run('catalog');
+      const selected = current.filter(item => [0, cross.frameId].includes(item.frameId)); const before = modelCalls;
+      const reply = await call('assistant:prepare', { tabId, mode: 'read', vision: true, task: 'local visual frames', frameIds: selected.map(item => item.frameId), frameDocuments: selected });
+      assert(reply.success, reply.error); assert.equal(reply.data.status, 'preview', JSON.stringify(reply.data.error));
+      const firstImage = reply.data.preview.vision.id;
+      await call('assistant:preview', { id: reply.data.id, previewId: reply.data.preview.id });
+      let state = await waitTask('preview'); assert.equal(state.frameId, cross.frameId); assert.equal(state.preview.vision, undefined); assert.equal(modelCalls, before + 1);
+      await call('assistant:preview', { id: state.id, previewId: state.preview.id });
+      state = await waitTask('preview'); assert.equal(state.frameId, 0); assert(state.preview.vision); assert.notEqual(state.preview.vision.id, firstImage);
+      const childRequest = JSON.parse(bodies[before + 1]); assert(!JSON.stringify(childRequest).includes('image_url')); assert(!JSON.stringify(childRequest).includes('data:image'));
+      await call('assistant:preview', { id: state.id, previewId: state.preview.id }); await waitTask('completed'); assert.equal(modelCalls, before + 3);
+      behavior = 'frame';
+    });
     const prepareAuto = async limit => {
       const tabId = await harness.evaluate(() => globalThis.frameTestTab);
       const response = await call('assistant:prepare', { tabId, mode: 'auto', task: 'local shadow test' }); assert(response.success, response.error);
@@ -221,6 +251,16 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       await page.locator('#nested-parent').evaluate(element => element.style.display = 'none');
       assert.equal((await run('observe', { frameId: nested.frameId })).error, 'FRAME_HIDDEN');
       await page.locator('#nested-parent').evaluate(element => element.style.display = ''); await page.evaluate(() => scrollTo(0, 0));
+    });
+    await t.test('sandbox document either exposes its own safe DOM or returns explicit browser refusal', async () => {
+      const before = new Set((await run('catalog')).map(item => item.frameId));
+      await page.evaluate(() => new Promise(resolve => { const frame = document.createElement('iframe'); frame.id = 'sandbox-test'; frame.sandbox = ''; frame.srcdoc = '<p>sandbox-isolated-only</p>'; frame.addEventListener('load', resolve, { once: true }); document.body.prepend(frame); }));
+      const current = await run('catalog'); const isolated = current.find(item => !before.has(item.frameId)); assert(isolated);
+      const selected = current.filter(item => [0, cross.frameId, isolated.frameId].includes(item.frameId)); await run('prepare', { ids: selected.map(item => item.frameId), documents: selected });
+      const observation = await run('observe', { frameId: isolated.frameId });
+      if (observation.error) { assert.equal(observation.error, 'PAGE_UNAVAILABLE'); t.diagnostic('Chrome refused sandbox scripting explicitly'); }
+      else { assert(observation.text.includes('sandbox-isolated-only')); assert(!observation.text.includes('closed-visible')); t.diagnostic('Chrome permits isolated-world observation of this sandbox document'); }
+      await page.locator('#sandbox-test').evaluate(element => element.remove());
     });
     await t.test('node and shadow-root budgets fail explicitly; bounded output recovers after removal', async () => {
       await page.evaluate(() => {

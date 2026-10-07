@@ -37,7 +37,7 @@ export function visionPage(command, args = {}) {
     const range = document.createRange(); range.selectNodeContents(node); const bounds = range.getBoundingClientRect(); const container = rect(parent);
     const x = Math.min(bounds.x, container.x), y = Math.min(bounds.y, container.y);
     const area = { x, y, width: Math.max(bounds.right, container.x + container.width) - x, height: Math.max(bounds.bottom, container.y + container.height) - y };
-    if (node.textContent.length > 16000) masks.push(area);
+    if (node.textContent.length > 16000 || globalThis.__loopyDOMRuntime?.sensitiveRegion(parent)) masks.push(area);
     else textRects.push({ text: node.textContent, ...area });
   }
   for (const element of document.querySelectorAll('button,a[href],input,textarea,select,[role="button"],[role="link"],canvas')) {
