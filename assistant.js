@@ -60,6 +60,7 @@ async function loadTabs() {
   for (const tab of tabs) { const option = document.createElement('option'); option.value = tab.id; option.textContent = tab.title; option.selected = tab.id === previous || !previous && tab.active; $('target').append(option); }
   if (!tabs.length) { const option = document.createElement('option'); option.textContent = '请先打开普通网页'; option.value = ''; $('target').append(option); }
   scopeUI.setTabs(tabs);
+  if (previous !== Number($('target').value)) frameUI.reset();
 }
 function updateConfig(next) {
   config = next; $('apiUrl').value = config.apiUrl ?? ''; $('modelName').value = config.model ?? '';

@@ -53,7 +53,7 @@
         <button id="saveConfig" type="submit">保存到本机</button>
       </form><p class="hint">密钥仅后台使用，存于浏览器本地配置；不上传 GitHub，不同步到 Chrome 账号。远程接口必须 HTTPS，本地回环服务允许 HTTP。</p>
     </details>
-    <footer>当前支持顶层可见 DOM；特殊页面、iframe 和 Canvas 可能需要手动操作。任务最多 16 步、3 分钟；关闭助手界面会停止任务。</footer>
+    <footer>支持可见 DOM、开放/闭合 Shadow DOM 和明确选中的 iframe；子框架仅用 DOM。特殊页面或要求可信输入的站点需手动操作。任务最多 16 步、3 分钟；关闭助手界面会停止任务。</footer>
   </main>
   <script type="module" src="assistant.js"></script>
 </body>

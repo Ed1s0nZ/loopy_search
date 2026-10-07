@@ -29,6 +29,7 @@ export function createFrameUI({ request, guarded, root = document }) {
   });
   reset();
   return {
+    reset,
     selection: () => ({ frameIds: [...chosen], frameDocuments: catalog.filter(frame => chosen.has(frame.frameId)).map(frame => ({ frameId: frame.frameId, documentId: frame.documentId })) }),
     render(state, locked) {
       $('loadFrames').disabled = locked; for (const input of $('frameChoices').querySelectorAll('input')) input.disabled = locked || input.dataset.frameId === '0';

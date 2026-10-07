@@ -15,7 +15,7 @@
 
 例如：“总结当前公告，列出影响版本和修复建议。”或在本地测试页上：“填写研究关键词，但每一步先让我确认。”
 
-密钥仅由扩展后台读取并用于你配置的模型服务，存于浏览器本地设置，不进入源码、Chrome 同步或 GitHub。发送预览会去掉网址 query/fragment、隐藏输入值、脱敏常见凭据；仍须自行检查业务机密。当前覆盖顶层可见 DOM；视觉模式可读取视口截图并派发经过确认的合成坐标点击（包括 Canvas）。要求 trusted 输入的站点需要手动操作；iframe/Shadow DOM 操作在后续路线中。无痕使用需手动允许扩展在无痕中运行；任务范围不能跨普通/无痕环境，Chrome 本地设置仍共享。
+密钥仅由扩展后台读取并用于你配置的模型服务，存于浏览器本地设置，不进入源码、Chrome 同步或 GitHub。发送预览会去掉网址 query/fragment、隐藏输入值、脱敏常见凭据；仍须自行检查业务机密。当前覆盖可见 DOM、开放/闭合/嵌套 Shadow DOM 与 slot。iframe 默认不读取正文：在“允许访问的 iframe 框架”中加载元数据、申请 Chrome 框架权限并明确选择（含顶层最多 16 个），随后开启任务。模型只能列出和切换已选框架，切换新文档后先预览；隐藏/离屏框架须先在页面中显示。子框架 DOM 动作只作用于该框架，导航始终作用于整个标签；切换标签恢复顶层。视觉模式读取顶层视口截图并派发经确认的合成坐标点击（包括 Canvas）；子框架模式清除图片历史，切回顶层后重新预览截图。要求 trusted 输入的站点需要手动操作。无痕使用需手动允许扩展在无痕中运行；任务范围不能跨普通/无痕环境，Chrome 本地设置仍共享。
 
 开发验证（Node 22+）：
 
@@ -29,7 +29,7 @@ npm run test:e2e
 
 `npm ci` 安装本地 pre-commit 敏感信息扫描 hook。CI 只使用合成模型和临时浏览器。真实服务测试必须显式运行 `npm run test:live`、`npm run test:live-browser`、`npm run test:live-vision`（一次只读小图）或 `npm run test:live-vision-action`（两次请求，仅合成画布点击），配置从仓库外 `~/.config/loopy-search/testing.json`（0600）或 `LOOPY_TEST_CONFIG` 指定的私有文件读取，不要把该文件复制进仓库。
 
-详见 [浏览器助手需求](docs/feature/browser-assistant/requirements.md)、[设计](docs/feature/browser-assistant/design.md)、[验证记录](docs/feature/browser-assistant/verification.md)、[范围与自动授权验证](docs/feature/browser-scope-automation/verification.md)、[视觉辅助验证](docs/feature/browser-vision/verification.md) 和 [完整升级路线](docs/roadmap.md)。
+详见 [浏览器助手需求](docs/feature/browser-assistant/requirements.md)、[设计](docs/feature/browser-assistant/design.md)、[验证记录](docs/feature/browser-assistant/verification.md)、[范围与自动授权验证](docs/feature/browser-scope-automation/verification.md)、[视觉辅助验证](docs/feature/browser-vision/verification.md) 、[框架与影子 DOM 验证](docs/feature/browser-frames/verification.md) 和 [完整升级路线](docs/roadmap.md)。
 
 <div align="center">
   <img src="https://github.com/Ed1s0nZ/loopy_search/blob/main/images/icon128.png" width="300px">

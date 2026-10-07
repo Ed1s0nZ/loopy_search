@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
-import { cp, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, relative } from 'node:path';
 
@@ -357,6 +357,22 @@ test('real Chrome: closed shadow DOM and exact-document iframe routing', { timeo
       state = await waitTask('preview'); assert.equal(state.frameId, 0); assert.equal(page.url(), navigationUrl); assert.equal(page.frames().length, 1);
       assert.deepEqual(state.preview.frames.map(frame => frame.frameId), [0]);
       await call('assistant:preview', { id: state.id, previewId: state.preview.id }); await waitTask('completed');
+    });
+    await t.test('frame picker renders at sidebar width and drops stale catalog when target closes', async () => {
+      const tabId = await harness.evaluate(() => globalThis.frameTestTab);
+      await harness.locator('#target').selectOption(String(tabId)); await harness.locator('#framePicker summary').click();
+      await harness.locator('#loadFrames').click(); await harness.waitForFunction(() => document.querySelector('#frameChoices input'));
+      assert.equal(await harness.locator('#frameChoices input').count(), 1);
+      await mkdir('artifacts', { recursive: true }); await harness.setViewportSize({ width: 420, height: 1000 });
+      for (const colorScheme of ['light', 'dark']) {
+        await harness.emulateMedia({ colorScheme }); await harness.screenshot({ path: `artifacts/frames-${colorScheme}-420.png`, fullPage: true });
+      }
+      const other = await context.newPage(); await other.goto(`http://127.0.0.1:${server.address().port}/same`);
+      await page.close(); await harness.locator('#refreshTabs').click();
+      await harness.waitForFunction(() => document.querySelector('#frameChoices').childElementCount === 0);
+      assert.notEqual(await harness.locator('#target').inputValue(), String(tabId));
+      assert((await harness.locator('#frameHint').textContent()).includes('默认只访问顶层'));
+      await other.close();
     });
   } finally {
     await context?.close(); await Promise.all([new Promise(resolve => server.close(resolve)), new Promise(resolve => child.close(resolve))]);

@@ -22,4 +22,7 @@ test('permissions, allowed IDs, inherited frames, reload metadata and parent nav
   frames = frames.map(frame => frame.frameId === 0 ? { ...frame, documentId: 'new-root' } : frame);
   await assert.rejects(adapter.check(1, 1, scope), { code: 'FRAME_SCOPE' }); assert.deepEqual(scope.frameScopes[1].ids, [0]);
   permitted = false; await assert.rejects(adapter.list(1, scope), { code: 'FRAME_PERMISSION' });
+  const enumerations = calls; await adapter.prepare(1, [0], scope);
+  assert.equal(scope.frameScopes[1], undefined); assert.deepEqual((await adapter.list(1, scope)).map(frame => frame.frameId), [0]);
+  assert.equal(calls, enumerations); await assert.rejects(adapter.check(1, 1, scope), { code: 'FRAME_SCOPE' });
 });

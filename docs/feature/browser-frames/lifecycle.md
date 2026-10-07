@@ -65,3 +65,11 @@ Feature Lifecycle Report：BA-FRAME，当前 F0；用户在 Web Components 或�
 本地有界面 Chromium 两次临时 Profile：CUA 读取并点击真实扩展权限弹窗，第一轮允许；第二轮拒绝，真实 request=false/contains=false、UI 提示/空列表，再申请并允许。脚本实际检查 grant、元数据列表、remove=true、onRemoved 清空列表/撤销提示，均 exit 0；随后关闭测试浏览器并删除 Profile。第一次 click 后 CUA AX 返回 App quit，来源是脚本完成清理，不是权限失败，实际脚本 PASS 为结论。可重复脚本 scripts/verify-frame-permission.mjs 不读取任何密钥，不请求模型，不进入自动 CI。
 
 真实子 frame 长页面 scrollY=200，父 scrollY 保持不变；iframe DOM 替换后旧 document/key 得 FRAME_SCOPE，新 frameId 未继承选择且字段空值。全套 39 单元/47 扩展测试、syntax/secret 检查通过。本轮无 paid 调用，无真实用户页面改动。F5 尚有 UI 全面检视与混合新开/关闭的最终证据整理，原生弹窗不再是验证缺口。
+
+### F5 UI 检视与范围收缩修复（进行中）
+
+420px 侧栏的真实扩展 light/dark 截图已生成并目视检查：列表/按钮/提示无横向截断或重叠，URL 换行，列表限高可滚动。截图在 ignored artifacts，不进入 Git。UI 原 footer 仍称只支持顶层 DOM，已按真实已实现能力更新，并补 README 的选择/权限/子 frame DOM/整页导航/视觉重预览使用说明。
+
+修复显式 root-only prepare 重用 scope 时未清旧子范围：删除 frameScopes[tabId]，撤销权限后 root-only 也无需枚举权限。单元证明清理、无枚举和子 frame 拒绝。刷新标签列表若旧目标关闭、自动改选新目标，frameUI.reset 清旧目录；真实扩展验证关闭目标后点击刷新，目录空、默认顶层提示和新 target。
+
+39 单元及 20 框架专项通过；最终完整扩展回归另运行记录。不以 UI 检视替代混合新开/关闭最终验收；F5/F6 仍未标全部完成。本轮无 paid 模型调用。

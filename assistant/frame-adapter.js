@@ -36,7 +36,7 @@ export function createFrameAdapter(api, { checkTab }) {
     catalog,
     async prepare(tabId, frameIds, scope, expected) {
       const ids = validateFrameIds(frameIds); scope.frameScopes ??= {};
-      if (ids.length === 1) return;
+      if (ids.length === 1) { delete scope.frameScopes[tabId]; return; }
       const frames = await catalog(tabId, scope); const root = frames.find(frame => frame.frameId === 0);
       if (expected !== undefined && (!Array.isArray(expected) || expected.length !== ids.length || ids.some(id => { const choice = expected.find(item => item?.frameId === id); return !choice || frames.find(item => item.frameId === id)?.documentId !== choice.documentId; }))) throw fail('STALE_SNAPSHOT', '框架列表发生变化，请重新加载并选择');
       if (!root?.documentId || ids.some(id => !frames.some(frame => frame.frameId === id))) throw fail('FRAME_SCOPE', '框架不属于当前页面或不可访问，请重新加载列表');
