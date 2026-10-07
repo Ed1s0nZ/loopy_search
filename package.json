@@ -1,0 +1,20 @@
+{
+  "name": "loopy-search",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.mjs",
+    "test:e2e": "node --test tests/browser.e2e.js",
+    "test:live": "node scripts/live-model-smoke.mjs",
+    "test:live-browser": "node scripts/live-browser-smoke.mjs",
+    "prepare": "git config core.hooksPath .githooks"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

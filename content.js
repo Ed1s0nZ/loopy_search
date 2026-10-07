@@ -14,7 +14,7 @@ function generateId() {
 }
 
 // 初始化时读取用户设置
-chrome.storage.local.get({
+LoopyPublicStorage.get({
   useMarkdown: true
 }, function(items) {
   isMarkdownMode = items.useMarkdown;
@@ -689,7 +689,7 @@ function runNetworkDiagnostics(container) {
   ];
   
   // 获取用户配置的API地址
-  chrome.storage.local.get({ apiUrl: 'https://api.openai.com/v1/chat/completions' }, function(items) {
+  LoopyPublicStorage.get({ apiUrl: 'https://api.openai.com/v1/chat/completions' }, function(items) {
     // 添加用户配置的API地址到测试列表
     if (items.apiUrl) {
       const apiDomain = new URL(items.apiUrl).origin;
@@ -737,7 +737,7 @@ function runNetworkDiagnostics(container) {
 }
 
 // 发送API请求获取AI响应
-async function fetchAIResponse(apiUrl, apiKey, model, messages) {
+async function fetchAIResponse(apiUrl, model, messages) {
   try {
     console.log('开始API请求:', { 
       url: apiUrl, 
@@ -750,7 +750,6 @@ async function fetchAIResponse(apiUrl, apiKey, model, messages) {
       chrome.runtime.sendMessage({
         action: 'fetchAIResponse',
         apiUrl: apiUrl,
-        apiKey: apiKey,
         data: {
           model: model,
           messages: Array.isArray(messages) ? messages : [
@@ -900,7 +899,7 @@ function cleanupResources() {
 function rateResult(rating) {
   if (!currentSearchId) return;
   
-  chrome.storage.local.get('searchHistory', function(data) {
+  LoopyPublicStorage.get('searchHistory', function(data) {
     const history = data.searchHistory || [];
     const index = history.findIndex(item => item.id === currentSearchId);
     
@@ -912,7 +911,7 @@ function rateResult(rating) {
         history[index].rating = rating;
       }
       
-      chrome.storage.local.set({ searchHistory: history });
+      chrome.runtime.sendMessage({ action: 'publicSettings:rate', id: currentSearchId, rating: history[index].rating });
     }
   });
 }
@@ -925,7 +924,7 @@ function searchWithAI(text, template = null) {
     conversationHistory = []; // 新对话时重置历史
   }
   showLoadingState('正在思考中...');
-  chrome.storage.local.get({
+  LoopyPublicStorage.get({
     apiUrl: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-3.5-turbo',
     customModel: '',
@@ -935,8 +934,8 @@ function searchWithAI(text, template = null) {
     saveHistory: true,
     maxChatHistory: 20 // 默认最大对话历史数量
   }, function(items) {
-    chrome.storage.local.get({ apiKey: '' }, async function(localItems) {
-      if (!localItems.apiKey) {
+    LoopyPublicStorage.get({ apiConfigured: false }, async function(localItems) {
+      if (!localItems.apiConfigured) {
         showErrorState('API密钥未设置', '请先在扩展设置中配置API密钥');
         return;
       }
@@ -994,7 +993,6 @@ function searchWithAI(text, template = null) {
         // 获取响应
         const response = await fetchAIResponse(
           items.apiUrl,
-          localItems.apiKey,
           items.actualModel,
           messages
         );
@@ -1077,8 +1075,8 @@ function searchWithAI(text, template = null) {
 }
 
 // 监听设置变化
-chrome.storage.onChanged.addListener(function(changes, namespace) {
-  if (namespace === 'sync') {
+LoopyPublicStorage.onChanged.addListener(function(changes, namespace) {
+  if (namespace === 'local') {
     // 更新Markdown设置
     if (changes.useMarkdown) {
       isMarkdownMode = changes.useMarkdown.newValue;
@@ -1121,12 +1119,12 @@ function showTranslationOptions(detectedLang) {
   translateButton.textContent = '翻译成中文';
   translateButton.addEventListener('click', function() {
     const translatePrompt = `请将以下${langName}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
-    chrome.storage.local.get({
+    LoopyPublicStorage.get({
       apiUrl: 'https://api.openai.com/v1/chat/completions',
       actualModel: 'gpt-3.5-turbo'
     }, function(items) {
-      chrome.storage.local.get({ apiKey: '' }, function(localItems) {
-        fetchAIResponse(items.apiUrl, localItems.apiKey, items.actualModel, translatePrompt)
+      LoopyPublicStorage.get({ apiConfigured: false }, function(localItems) {
+        fetchAIResponse(items.apiUrl, items.actualModel, translatePrompt)
           .then(response => {
             showAISearchResultWindow(response.content);
             translateButton.textContent = '翻译';
@@ -1148,12 +1146,12 @@ function showTranslationOptions(detectedLang) {
   bothButton.textContent = '解释并翻译';
   bothButton.addEventListener('click', function() {
     const bothPrompt = `请先将以下${langName}文本翻译成中文，然后解释其含义：\n\n${selectedText}`;
-    chrome.storage.local.get({
+    LoopyPublicStorage.get({
       apiUrl: 'https://api.openai.com/v1/chat/completions',
       actualModel: 'gpt-3.5-turbo'
     }, function(items) {
-      chrome.storage.local.get({ apiKey: '' }, function(localItems) {
-        fetchAIResponse(items.apiUrl, localItems.apiKey, items.actualModel, bothPrompt)
+      LoopyPublicStorage.get({ apiConfigured: false }, function(localItems) {
+        fetchAIResponse(items.apiUrl, items.actualModel, bothPrompt)
           .then(response => {
             showAISearchResultWindow(response.content);
           })
@@ -1236,12 +1234,12 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
       } else {
         translatePrompt = `请将以下${getLanguageName(detectedLang)}文本翻译成中文，只返回翻译结果，不要解释：\n\n${selectedText}`;
       }
-      chrome.storage.local.get({
+      LoopyPublicStorage.get({
         apiUrl: 'https://api.openai.com/v1/chat/completions',
-        apiKey: '',
+        apiConfigured: false,
         actualModel: 'gpt-3.5-turbo'
       }, function(items) {
-        fetchAIResponse(items.apiUrl, items.apiKey, items.actualModel, translatePrompt)
+        fetchAIResponse(items.apiUrl, items.actualModel, translatePrompt)
           .then(response => {
             showAISearchResultWindow(response);
           })
@@ -1473,14 +1471,14 @@ function openSettings() {
 
 // 保存备忘录
 function saveMemo(text) {
-  chrome.storage.local.get({ memos: [] }, function(data) {
+  LoopyPublicStorage.get({ memos: [] }, function(data) {
     const memos = data.memos;
     memos.push({
       id: Date.now(),
       text: text,
       timestamp: new Date().toISOString()
     });
-    chrome.storage.local.set({ memos: memos }, function() {
+    LoopyPublicStorage.set({ memos: memos }, function() {
       console.log('备忘录已保存');
     });
   });
@@ -1488,16 +1486,16 @@ function saveMemo(text) {
 
 // 获取所有备忘录
 function getMemos(callback) {
-  chrome.storage.local.get({ memos: [] }, function(data) {
+  LoopyPublicStorage.get({ memos: [] }, function(data) {
     callback(data.memos);
   });
 }
 
 // 删除备忘录
 function deleteMemo(id) {
-  chrome.storage.local.get({ memos: [] }, function(data) {
+  LoopyPublicStorage.get({ memos: [] }, function(data) {
     const memos = data.memos.filter(memo => memo.id !== id);
-    chrome.storage.local.set({ memos: memos }, function() {
+    LoopyPublicStorage.set({ memos: memos }, function() {
       console.log('备忘录已删除');
     });
   });
@@ -1593,13 +1591,13 @@ function showMemoWindow() {
   
   // 更新备忘录
   function updateMemo(id, text) {
-    chrome.storage.local.get({ memos: [] }, function(data) {
+    LoopyPublicStorage.get({ memos: [] }, function(data) {
       const memos = data.memos;
       const index = memos.findIndex(memo => memo.id === id);
       if (index !== -1) {
         memos[index].text = text;
         memos[index].timestamp = new Date().toISOString(); // 更新时间戳
-        chrome.storage.local.set({ memos: memos }, function() {
+        LoopyPublicStorage.set({ memos: memos }, function() {
           console.log('备忘录已更新');
         });
       }
@@ -2073,4 +2071,4 @@ function showAISearchResultWindow(result) {
 // 判断template是否有效（有title/content/category且为对象）
 function isTemplateValid(template) {
   return !!(template && typeof template === 'object' && (template.title || template.content || template.category));
-} 
+}

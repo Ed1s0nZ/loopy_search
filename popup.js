@@ -2498,7 +2498,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chrome.runtime.sendMessage({
           action: 'fetchAIResponse',
           apiUrl: items.apiUrl,
-          apiKey: items.apiKey,
           data: {
             model: items.actualModel,
             messages: apiMessages,
@@ -4555,4 +4554,4 @@ function resetRequestData() {
     }
     console.log('请求数据已清空');
   });
-} 
+}

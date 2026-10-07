@@ -10,7 +10,9 @@
     "scripting",
     "clipboardWrite",
     "tabs",
-    "proxy"
+    "proxy",
+    "sidePanel",
+    "activeTab"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -27,14 +29,23 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["marked.min.js", "content.js"],
-      "css": ["content.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "security/public-storage.js",
+        "marked.min.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_end"
     }
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "commands": {
     "search_with_ai": {
@@ -43,6 +54,13 @@
         "mac": "Alt+A"
       },
       "description": "使用AI解释选中的文本"
+    },
+    "open_browser_assistant": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Alt+Shift+A"
+      },
+      "description": "打开 AI 浏览器助手"
     }
   },
   "web_accessible_resources": [
@@ -50,13 +68,19 @@
       "resources": [
         "images/*",
         "marked.min.js",
-        "content.css",
-        "popup.html"
+        "content.css"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "host_permissions": [
     "<all_urls>"
-  ]
-} 
+  ],
+  "minimum_chrome_version": "116",
+  "side_panel": {
+    "default_path": "assistant.html"
+  },
+  "options_page": "popup.html"
+}

@@ -40,6 +40,22 @@
 - Validation commands：npm test、npm run check、npm run test:e2e、git diff --check、敏感信息检查。
 - Risks and assumptions：浏览器事件与模型行为均须测试；真实模型连通性不能由模拟响应证明。
 
+## F1 / F2 / F3
+
+- F1：9044e38，requirements.md 与完整 roadmap，已推送。
+- F2：a5565ef，design.md 工具/状态/数据/权限合同，已推送。
+- F3：d77ebca，implementation-plan.md，已推送。
+
+## F4 实现
+
+- 独立模块实现侧栏 UI、严格 JSON 动作、DOM 引用/过期检查、模型客户端、执行状态机与停止。
+- 点击/填写/选择/导航均需逐次确认；只读默认；固定目标标签；新文档上下文再批准。
+- 模型输出纯文本渲染，远程服务 HTTPS，拒绝重定向、响应限长、请求可取消。
+- storage.local 已限制 trusted contexts；旧划词经公开白名单读取设置，旧 AI 转发由后台选择端点和密钥。
+- 新模块均低于 200 行；旧后台减少约 74 行，旧页面/弹窗只有适配器和入口调整。
+- 新增提交 hook、CI 扫描、Node 测试、本地浏览器 fixture；真实密钥仅仓库外私有文件。
+- 当前验证：21 个单元测试、11 个真实扩展测试通过；真实 DeepSeek 客户端和浏览器只读 smoke 通过；语法/manifest/差异/敏感信息检查通过。F5 另记录完整验证及限制。
+
 ## 后续阶段
 
-尚未完成，实际证据随各阶段追加。其他能力在 docs/roadmap.md 保留完整范围，不以浏览器助手代替全量目标。
+F5 待记录完整验证与使用说明；其他能力在 docs/roadmap.md 保留完整范围，不以浏览器助手代替全量目标。

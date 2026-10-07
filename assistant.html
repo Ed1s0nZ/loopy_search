@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Loopy · 浏览器助手</title>
+  <link rel="stylesheet" href="assistant.css">
+</head>
+<body>
+  <header><div class="brand"><img src="images/icon48.png" alt=""><div><strong>Loopy</strong><span>浏览器助手</span></div></div><span id="status" class="badge">就绪</span></header>
+  <main>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <section class="card">
+      <div class="section-heading"><h1>让浏览器帮你完成工作</h1><button id="refreshTabs" class="quiet" aria-label="刷新标签页列表">刷新</button></div>
+      <label for="target">目标标签页</label><select id="target"></select>
+      <p class="hint">任务固定在所选标签页；切换标签不会改变执行目标。</p>
+      <label for="task">任务</label><textarea id="task" rows="4" maxlength="4000" placeholder="例如：总结当前页面，提取表单和关键链接。"></textarea>
+      <label for="mode">执行模式</label><select id="mode"><option value="read">只读分析</option><option value="assist">辅助操作 · 每次修改需确认</option></select>
+      <div class="actions"><button id="prepare" class="primary">预览页面与任务</button><button id="stop" class="danger" disabled>停止</button></div>
+      <p class="hint">不会执行模型生成的 JavaScript。密码和敏感输入不采集；脱敏无法保证识别所有业务机密，请检查预览。</p>
+    </section>
+    <section id="previewCard" class="card" hidden>
+      <h2>发送前检查</h2><p id="destination" class="hint"></p>
+      <p id="previewTask"></p><pre id="preview"></pre>
+      <p class="hint">以下内容将发送给你配置的模型服务。网址查询参数与输入值不采集；新页面会再次请求批准。</p>
+      <div class="actions"><button id="approvePreview" class="primary">批准发送并开始</button><button id="rejectPreview">取消</button></div>
+    </section>
+    <section id="confirmationCard" class="card confirm" hidden>
+      <h2>确认这一步操作</h2><p id="actionReason"></p><pre id="actionDetail"></pre>
+      <p class="hint">点击可能提交表单或触发其他页面行为。确认前检查目标、输入与操作；已执行动作不会自动撤销。</p>
+      <div class="actions"><button id="approveAction" class="primary">允许这一步</button><button id="rejectAction">拒绝并停止</button></div>
+    </section>
+    <section id="resultCard" class="card" hidden><h2>结果</h2><div id="result" class="result"></div></section>
+    <section class="card"><div class="section-heading"><h2>执行过程</h2><span id="steps" class="hint">0 步</span></div><ol id="events" aria-live="polite"></ol><p id="emptyEvents" class="hint">输入任务后先预览页面，再开始执行。</p><p id="usage" class="hint"></p></section>
+    <details id="settings" class="card"><summary>模型服务设置</summary>
+      <form id="configForm">
+        <label for="apiUrl">Chat Completions 完整地址</label><input id="apiUrl" type="url" required placeholder="https://你的服务/chat/completions" autocomplete="off">
+        <label for="modelName">模型名称</label><input id="modelName" required maxlength="120" placeholder="服务支持的模型名称" autocomplete="off">
+        <label for="apiKey">API Key</label><input id="apiKey" type="password" maxlength="512" autocomplete="new-password" placeholder="留空保留已有密钥">
+        <p id="keyStatus" class="hint"></p>
+        <label class="check"><input id="clearKey" type="checkbox">删除已保存密钥</label>
+        <button id="saveConfig" type="submit">保存到本机</button>
+      </form><p class="hint">密钥仅后台使用，存于浏览器本地配置；不上传 GitHub，不同步到 Chrome 账号。远程接口必须 HTTPS，本地回环服务允许 HTTP。</p>
+    </details>
+    <footer>当前支持顶层可见 DOM；特殊页面、iframe 和 Canvas 可能需要手动操作。任务最多 16 步、3 分钟；关闭助手界面会停止任务。</footer>
+  </main>
+  <script type="module" src="assistant.js"></script>
+</body>
+</html>

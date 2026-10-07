@@ -1,3 +1,11 @@
+import { createSettings } from './security/settings.js';
+import { legacyAI } from './security/legacy-ai.js';
+import { installAssistant } from './assistant/service.js';
+
+const secureSettings = createSettings(chrome);
+secureSettings.installBridge();
+installAssistant(chrome, secureSettings);
+
 // 全局变量
 let historyRetentionDays = 7; // 默认保留7天
 let maxHistoryItems = 1000; // 最大历史记录数量
@@ -572,91 +580,16 @@ function checkNetworkStatus() {
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   try {
     if (request.action === 'fetchAIResponse') {
-      console.debug('收到 API 请求:', {
-        url: request.apiUrl,
-        model: request.data.model
-      });
-
-      // 设置请求超时
-      const controller = new AbortController();
-      const timeout = setTimeout(() => {
-        controller.abort();
-      }, 300000); // 5分钟超时
-
-      // 处理 API 请求
-      fetch(request.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${request.apiKey}`
-        },
-        body: JSON.stringify(request.data),
-        signal: controller.signal
-      })
-      .then(async response => {
-        clearTimeout(timeout);
-        
-        console.debug('收到 API 响应:', {
-          status: response.status,
-          ok: response.ok
+      legacyAI(request, sender, chrome, secureSettings)
+        .then(response => {
+          networkStatus.isOnline = true; networkStatus.lastCheck = Date.now(); networkStatus.lastError = null;
+          sendResponse(response);
+        })
+        .catch(error => {
+          const message = error.code ? error.message : 'AI 请求失败，请检查配置';
+          networkStatus.lastCheck = Date.now(); networkStatus.lastError = message;
+          sendResponse({ success: false, error: message });
         });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorMessage;
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.error?.message || errorJson.message || `请求失败 (${response.status})`;
-          } catch (e) {
-            errorMessage = `请求失败 (${response.status}): ${errorText}`;
-          }
-          console.debug('API 错误:', errorMessage);
-          
-          // 更新网络状态
-          networkStatus.lastError = errorMessage;
-          networkStatus.lastCheck = Date.now();
-          
-          sendResponse({ success: false, error: errorMessage });
-        } else {
-          const data = await response.json();
-          console.debug('API 响应数据:', {
-            hasChoices: !!data.choices,
-            choicesLength: data.choices?.length
-          });
-          
-          // 更新网络状态
-          networkStatus.isOnline = true;
-          networkStatus.lastCheck = Date.now();
-          networkStatus.lastError = null;
-          
-          // 只保留必要的响应数据
-          const cleanedData = {
-            choices: data.choices?.map(choice => ({
-              message: choice.message,
-              finish_reason: choice.finish_reason
-            }))
-          };
-          
-          sendResponse({ success: true, data: cleanedData });
-        }
-      })
-      .catch(error => {
-        clearTimeout(timeout);
-        
-        console.debug('API 请求失败:', error);
-        
-        // 更新网络状态
-        networkStatus.isOnline = false;
-        networkStatus.lastCheck = Date.now();
-        networkStatus.lastError = error.message;
-        
-        // 如果是超时错误
-        if (error.name === 'AbortError') {
-          sendResponse({ success: false, error: '请求超时，请稍后重试' });
-        } else {
-          sendResponse({ success: false, error: error.message });
-        }
-      });
 
       return true; // 保持消息通道开放
     } else if (request.action === 'getIconUrl') {
@@ -808,4 +741,4 @@ function saveSearchHistory(data) {
 // 生成唯一ID
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-} 
+}
