@@ -51,7 +51,7 @@ export function visionPage(command, args = {}) {
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return error('INVALID_ACTION', '坐标不在当前截图视口');
   const hit = document.elementFromPoint(x, y);
   const element = hit?.closest('button,a[href],input,textarea,select,[role="button"],[role="link"],canvas');
-  if (!visible(element) || element.disabled || element.getAttribute('aria-disabled') === 'true' || element.readOnly || element.closest('input,textarea,select,[contenteditable],iframe,object,embed') || element.hasAttribute('download')) return error('BLOCKED', '目标不是可见可操作区域或属于遮挡区域');
+  if (!visible(element) || element.disabled || element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true' || element.readOnly || element.closest('input,textarea,select,[contenteditable],iframe,object,embed') || element.hasAttribute('download')) return error('BLOCKED', '目标不是可见可操作区域或属于遮挡区域');
   if (element.tagName === 'A') {
     try { const url = new URL(element.href); if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || element.target && element.target !== '_self') return error('BLOCKED', '不允许此链接操作'); } catch { return error('BLOCKED', '无效链接'); }
   }

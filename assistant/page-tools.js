@@ -67,7 +67,7 @@ export async function pageTool(command, args = {}) {
     const candidates = tree ? tree.elements.filter(element => element.matches(selector)) : document.querySelectorAll(selector);
     for (const element of candidates) {
       if (elements.length >= 80) break;
-      if (!visible(element) || element.disabled || element.getAttribute('aria-disabled') === 'true' || element.readOnly || sensitive(element) || ['hidden', 'file'].includes(element.type)) continue;
+      if (!visible(element) || element.disabled || element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true' || element.readOnly || sensitive(element) || ['hidden', 'file'].includes(element.type)) continue;
       if (element.tagName === 'A' && (!safeUrl(element.href) || element.hasAttribute('download'))) continue;
       const id = `e${elements.length + 1}`;
       const signature = fingerprint(element);
@@ -108,7 +108,7 @@ export async function pageTool(command, args = {}) {
   if (args.snapshotId !== state.snapshotId || state.observedRevision !== state.revision || state.url !== location.href) return error('STALE_SNAPSHOT', '页面已经变化，请重新观察后再确认');
   const reference = state.refs.get(args.elementId);
   const element = reference?.element;
-  if (!element || !visible(element) || element.disabled || element.getAttribute('aria-disabled') === 'true' || element.readOnly || sensitive(element) || reference.fingerprint !== fingerprint(element)) return error('STALE_SNAPSHOT', '目标元素不可用或发生变化');
+  if (!element || !visible(element) || element.disabled || element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true' || element.readOnly || sensitive(element) || reference.fingerprint !== fingerprint(element)) return error('STALE_SNAPSHOT', '目标元素不可用或发生变化');
   if (command === 'click') {
     if (['file', 'password', 'hidden'].includes(element.type) || element.hasAttribute('download') || element.tagName === 'A' && !safeUrl(element.href)) return error('BLOCKED', '不允许此类点击');
     // Navigation stays in the authorized tab; sites may still open their own popups.

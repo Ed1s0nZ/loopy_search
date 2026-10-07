@@ -11,6 +11,11 @@ test('browser adapter enforces window and incognito scope before document inject
   await assert.rejects(browser.prepareScope(3, [3], [], false), { code: 'SCOPE' });
   const scope = await browser.prepareScope(1, [1], [], false);
   await assert.rejects(browser.observe(2, [], null, scope), { code: 'SCOPE' }); assert.equal(injected, 0);
+  for (const id of [2, 3]) {
+    await assert.rejects(browser.observe(id, [], null, scope, 1), { code: 'SCOPE' });
+    await assert.rejects(browser.frames.catalog(id, scope), { code: 'SCOPE' });
+  }
+  assert.equal(injected, 0);
 });
 test('close compares captured title even if document record is refreshed', async () => {
   let title = 'original'; let removed = false;
